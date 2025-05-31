@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 from django.core.validators import RegexValidator
+from .validators import PasswordValidator
 
 
 class UserManager(BaseUserManager):
@@ -12,6 +13,11 @@ class UserManager(BaseUserManager):
             raise ValueError('User must have a username')
         if not full_name:
             raise ValueError('User must have a full name')
+
+        # Validate password
+        if password:
+            validator = PasswordValidator()
+            validator.validate(password)
 
         user = self.model(
             email=self.normalize_email(email),
@@ -32,13 +38,11 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    # Валидаторы
     username_validator = RegexValidator(
         regex='^[a-zA-Z][a-zA-Z0-9]{3,19}$',
         message='Username must start with a letter and contain 4-20 alphanumeric characters'
     )
     
-    # Основные поля
     username = models.CharField(
         max_length=20,
         unique=True,
@@ -58,13 +62,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_query_name="user",
     )
     
-    # Поля для администрирования
     is_admin = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(default=timezone.now, verbose_name='Registration Date')
     
-    # Связь с файловым хранилищем
     storage_directory = models.CharField(max_length=255, unique=True, null=True)
     
     objects = UserManager()

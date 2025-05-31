@@ -1,10 +1,54 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import Group
 from django.utils.html import format_html
+from django.core.exceptions import ValidationError
 from .models import User
+from .validators import PasswordValidator
+
+class CustomUserCreationForm(forms.ModelForm):
+    password1 = forms.CharField(
+        label="Password",
+        strip=False,
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}),
+        help_text=PasswordValidator().get_help_text(),
+    )
+    password2 = forms.CharField(
+        label="Password confirmation",
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}),
+        strip=False,
+        help_text="Enter the same password as before, for verification.",
+    )
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'full_name')
+
+    def clean_password1(self):
+        password1 = self.cleaned_data.get('password1')
+        if password1:
+            validator = PasswordValidator()
+            validator.validate(password1)
+        return password1
+
+    def clean_password2(self):
+        password1 = self.cleaned_data.get("password1")
+        password2 = self.cleaned_data.get("password2")
+        if password1 and password2 and password1 != password2:
+            raise ValidationError("Passwords don't match")
+        return password2
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data["password1"])
+        if commit:
+            user.save()
+        return user
 
 class CustomUserAdmin(UserAdmin):
+    add_form = CustomUserCreationForm
+    form = forms.ModelForm
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('full_name', 'email', 'storage_directory')}),
@@ -30,7 +74,7 @@ class CustomUserAdmin(UserAdmin):
     filter_horizontal = ('groups', 'user_permissions')
     
     def get_group_names(self, obj):
-        return obj.get_group_names()
+        return ", ".join([group.name for group in obj.groups.all()])
     get_group_names.short_description = 'Groups'
     
     def get_permission_status_display(self, obj):
@@ -44,13 +88,11 @@ class CustomUserAdmin(UserAdmin):
     get_permission_status_display.short_description = 'Permissions'
     get_permission_status_display.admin_order_field = 'is_superuser'
 
-admin.site.register(User, CustomUserAdmin)
-
-# Unregister default Group admin and register custom one
+# Сначала отменяем регистрацию стандартной модели Group
 admin.site.unregister(Group)
 
 @admin.register(Group)
-class GroupAdmin(admin.ModelAdmin):
+class CustomGroupAdmin(admin.ModelAdmin):
     list_display = ('name', 'get_user_count', 'user_actions')
     filter_horizontal = ('permissions',)
     
@@ -89,3 +131,6 @@ class GroupAdmin(admin.ModelAdmin):
             'has_change_permission': self.has_change_permission(request, group),
         }
         return render(request, 'admin/auth/group_users.html', context)
+
+# Регистрируем кастомную модель User после Group
+admin.site.register(User, CustomUserAdmin)
