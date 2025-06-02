@@ -88,7 +88,6 @@ class CustomUserAdmin(UserAdmin):
     get_permission_status_display.short_description = 'Permissions'
     get_permission_status_display.admin_order_field = 'is_superuser'
 
-# Сначала отменяем регистрацию стандартной модели Group
 admin.site.unregister(Group)
 
 @admin.register(Group)
@@ -97,7 +96,7 @@ class CustomGroupAdmin(admin.ModelAdmin):
     filter_horizontal = ('permissions',)
     
     def get_user_count(self, obj):
-        return obj.custom_user_set.count()
+        return obj.user_set.count()
     get_user_count.short_description = 'Users'
     
     def user_actions(self, obj):
@@ -105,7 +104,7 @@ class CustomGroupAdmin(admin.ModelAdmin):
             '<a class="button" href="{}">Add users</a>&nbsp;'
             '<a class="button" href="{}">View users</a>',
             f'/admin/accounts/user/?groups__id__exact={obj.id}',
-            f'/admin/auth/group/{obj.id}/users/'
+            f'/admin/accounts/group/{obj.id}/users/'
         )
     user_actions.short_description = 'Actions'
     user_actions.allow_tags = True
@@ -115,14 +114,14 @@ class CustomGroupAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path('<path:object_id>/users/', self.admin_site.admin_view(self.group_users_view), 
-            name='group-users'),
+                 name='group-users'),
         ]
         return custom_urls + urls
     
     def group_users_view(self, request, object_id):
         from django.shortcuts import render
         group = Group.objects.get(id=object_id)
-        users = group.custom_user_set.all()
+        users = group.user_set.all()
         context = {
             'group': group,
             'users': users,
@@ -132,5 +131,4 @@ class CustomGroupAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/auth/group_users.html', context)
 
-# Регистрируем кастомную модель User после Group
 admin.site.register(User, CustomUserAdmin)

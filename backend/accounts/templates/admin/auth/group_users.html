@@ -1,44 +1,196 @@
 {% extends "admin/base_site.html" %}
 {% load i18n admin_urls static admin_list %}
 
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .module table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+    .module th {
+        background: #f8f8f8;
+        text-align: left;
+        padding: 10px;
+        border-bottom: 2px solid #ddd;
+    }
+    .module td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #eee;
+        vertical-align: top;
+    }
+    .module tr:hover td {
+        background-color: #f5f5f5;
+    }
+    .button {
+        display: inline-block;
+        padding: 6px 12px;
+        margin-bottom: 0;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.42857143;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: middle;
+        cursor: pointer;
+        background-color: #417690;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        border: 1px solid transparent;
+    }
+    .button:hover {
+        background-color: #305067;
+        color: white;
+    }
+    .submit-row {
+        margin: 20px 0;
+        display: flex;
+        gap: 10px;
+    }
+    .actions {
+        margin-bottom: 15px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    .actions input[type="text"] {
+        padding: 6px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .pagination {
+        display: flex;
+        gap: 5px;
+        margin-top: 15px;
+    }
+    .pagination a, .pagination span {
+        padding: 5px 10px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+    .pagination .current {
+        background: #417690;
+        color: white;
+        border-color: #417690;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div id="content-main">
     <h1>Users in group: {{ group.name }}</h1>
     
+    <div class="actions">
+        <form method="get">
+            <input type="text" name="q" placeholder="Search by username..." value="{{ request.GET.q }}">
+            <button type="submit" class="button">Search</button>
+            {% if request.GET.q %}
+                <a href="?" class="button">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+    
     <div class="module">
-        <table>
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Full name</th>
-                    <th>Email</th>
-                    <th>Date joined</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.full_name }}</td>
-                    <td>{{ user.email }}</td>
-                    <td>{{ user.date_joined }}</td>
-                    <td>
-                        <a href="{% url 'admin:accounts_user_change' user.id %}">Edit</a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="5">No users in this group</td>
-                </tr>
+        {% if users %}
+            <form method="post" action="{% url 'admin:group-mass-action' group.id %}">
+                {% csrf_token %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th width="20"><input type="checkbox" id="select-all"></th>
+                            <th>Username</th>
+                            <th>Full name</th>
+                            <th>Email</th>
+                            <th>Date joined</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td><input type="checkbox" name="user_ids" value="{{ user.id }}"></td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.full_name }}</td>
+                            <td><a href="mailto:{{ user.email }}">{{ user.email }}</a></td>
+                            <td>{{ user.date_joined|date:"Y-m-d H:i" }}</td>
+                            <td>
+                                {% if user.is_active %}
+                                    <span style="color: green;">Active</span>
+                                {% else %}
+                                    <span style="color: red;">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'admin:accounts_user_change' user.id %}" class="button">Edit</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <div class="actions">
+                    <select name="action" class="action-select">
+                        <option value="">---------</option>
+                        <option value="remove_from_group">Remove selected from group</option>
+                    </select>
+                    <button type="submit" class="button">Execute</button>
+                </div>
+            </form>
+            
+            {% if users.has_other_pages %}
+            <div class="pagination">
+                {% if users.has_previous %}
+                    <a href="?page={{ users.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">&laquo;</a>
+                {% endif %}
+                
+                {% for i in users.paginator.page_range %}
+                    {% if users.number == i %}
+                        <span class="current">{{ i }}</span>
+                    {% else %}
+                        <a href="?page={{ i }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">{{ i }}</a>
+                    {% endif %}
                 {% endfor %}
-            </tbody>
-        </table>
+                
+                {% if users.has_next %}
+                    <a href="?page={{ users.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">&raquo;</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                No users found in this group{% if request.GET.q %} matching your search criteria{% endif %}.
+            </div>
+        {% endif %}
     </div>
     
     <div class="submit-row">
         <a href="{% url 'admin:auth_group_change' group.id %}" class="button">Back to group</a>
         <a href="{% url 'admin:accounts_user_add' %}?groups={{ group.id }}" class="button">Add new user to group</a>
+        <a href="/admin/accounts/user/?groups__id__exact={{ group.id }}" class="button">Manage group members</a>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Select all checkbox
+    document.getElementById('select-all').addEventListener('change', function(e) {
+        const checkboxes = document.querySelectorAll('input[name="user_ids"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = e.target.checked;
+        });
+    });
+    
+    // Disable execute button when no action selected
+    const actionSelect = document.querySelector('.action-select');
+    const executeButton = document.querySelector('button[type="submit"]');
+    
+    actionSelect.addEventListener('change', function() {
+        executeButton.disabled = !this.value;
+    });
+    executeButton.disabled = !actionSelect.value;
+});
+</script>
 {% endblock %}

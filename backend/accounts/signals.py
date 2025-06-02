@@ -7,6 +7,6 @@ from .models import User
 @receiver(post_save, sender=User)
 def create_user_storage(sender, instance, created, **kwargs):
     if created:
-        # Создаем физическую директорию для файлов пользователя
+        # Создание физической директории для файлов пользователя
         user_storage_path = os.path.join(settings.MEDIA_ROOT, instance.storage_directory)
         os.makedirs(user_storage_path, exist_ok=True)
