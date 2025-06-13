@@ -93,6 +93,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(
         _('date joined'),
         auto_now_add=True,
+        editable=False, 
     )
     
     groups = models.ManyToManyField(

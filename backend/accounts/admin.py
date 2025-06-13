@@ -1,9 +1,11 @@
 from django import forms
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import UserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group
 from django.utils.html import format_html
 from django.core.exceptions import ValidationError
+from django.urls import path, reverse
+from django.shortcuts import redirect
 from .models import User
 from .validators import PasswordValidator
 
@@ -57,7 +59,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('is_admin', 'is_staff', 'is_superuser', 'user_permissions'),
             'description': 'Set user permissions'
         }),
-        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+        ('Important dates', {'fields': ('last_login',)}),
     )
     
     add_fieldsets = (
@@ -72,6 +74,7 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('username', 'email', 'full_name')
     ordering = ('-date_joined',)
     filter_horizontal = ('groups', 'user_permissions')
+    readonly_fields = ('date_joined',)
     
     def get_group_names(self, obj):
         return ", ".join([group.name for group in obj.groups.all()])
@@ -88,15 +91,11 @@ class CustomUserAdmin(UserAdmin):
     get_permission_status_display.short_description = 'Permissions'
     get_permission_status_display.admin_order_field = 'is_superuser'
 
-admin.site.unregister(Group)
-
-@admin.register(Group)
-class CustomGroupAdmin(admin.ModelAdmin):
+class GroupAdmin(BaseGroupAdmin):
     list_display = ('name', 'get_user_count', 'user_actions')
-    filter_horizontal = ('permissions',)
     
     def get_user_count(self, obj):
-        return obj.user_set.count()
+        return obj.custom_user_set.count()
     get_user_count.short_description = 'Users'
     
     def user_actions(self, obj):
@@ -104,24 +103,24 @@ class CustomGroupAdmin(admin.ModelAdmin):
             '<a class="button" href="{}">Add users</a>&nbsp;'
             '<a class="button" href="{}">View users</a>',
             f'/admin/accounts/user/?groups__id__exact={obj.id}',
-            f'/admin/accounts/group/{obj.id}/users/'
+            reverse('admin:group-users', args=[obj.id])
         )
     user_actions.short_description = 'Actions'
-    user_actions.allow_tags = True
     
     def get_urls(self):
-        from django.urls import path
         urls = super().get_urls()
         custom_urls = [
             path('<path:object_id>/users/', self.admin_site.admin_view(self.group_users_view), 
                  name='group-users'),
+            path('<path:object_id>/mass-action/', self.admin_site.admin_view(self.group_mass_action), 
+                 name='group-mass-action'),
         ]
         return custom_urls + urls
     
     def group_users_view(self, request, object_id):
         from django.shortcuts import render
         group = Group.objects.get(id=object_id)
-        users = group.user_set.all()
+        users = group.custom_user_set.all()
         context = {
             'group': group,
             'users': users,
@@ -130,5 +129,24 @@ class CustomGroupAdmin(admin.ModelAdmin):
             'has_change_permission': self.has_change_permission(request, group),
         }
         return render(request, 'admin/auth/group_users.html', context)
+    
+    def group_mass_action(self, request, object_id):
+        if request.method == 'POST':
+            action = request.POST.get('action')
+            user_ids = request.POST.getlist('user_ids')
+            group = Group.objects.get(id=object_id)
+            
+            if action == 'remove_from_group' and user_ids:
+                users = User.objects.filter(id__in=user_ids)
+                for user in users:
+                    user.groups.remove(group)
+            
+            return redirect(reverse('admin:group-users', args=[object_id]))
+        
+        return redirect(reverse('admin:auth_group_changelist'))
 
+# Отмена регистрации стандартной GroupAdmin
+admin.site.unregister(Group)
+# Регистрация нашей кастомной GroupAdmin
+admin.site.register(Group, GroupAdmin)
 admin.site.register(User, CustomUserAdmin)
