@@ -1,16 +1,29 @@
 import React from 'react';
-import { RegisterForm } from '../components/auth/RegisterForm';
+import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { register } from '../store/slices/authSlice';
+import RegisterForm from '../components/auth/RegisterForm';
+import { Container, Box, Typography } from '@mui/material';
 
-export const Register = () => {
-  const handleSubmit = (userData) => {
-    console.log('Registration attempt:', userData);
-    // Здесь будет вызов API
+const Register = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (userData) => {
+    const result = await dispatch(register(userData));
+    if (result.payload?.success) {
+      navigate('/dashboard');
+    }
   };
 
   return (
-    <div>
-      <h2>Register</h2>
-      <RegisterForm onSubmit={handleSubmit} />
-    </div>
+    <Container maxWidth="sm">
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h4" gutterBottom>Register</Typography>
+        <RegisterForm onSubmit={handleSubmit} />
+      </Box>
+    </Container>
   );
 };
+
+export default Register;

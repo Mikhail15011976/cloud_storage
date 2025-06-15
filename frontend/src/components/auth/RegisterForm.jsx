@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Button } from '../ui/Button';
-import { TextField } from '@mui/material';
+import { TextField, Button, CircularProgress } from '@mui/material';
 
-export const RegisterForm = ({ onSubmit, loading }) => {
+const RegisterForm = ({ onSubmit, loading }) => {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -20,7 +19,14 @@ export const RegisterForm = ({ onSubmit, loading }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (formData.password === formData.password2) {
+      onSubmit({
+        username: formData.username,
+        email: formData.email,
+        full_name: formData.full_name,
+        password: formData.password
+      });
+    }
   };
 
   return (
@@ -33,6 +39,7 @@ export const RegisterForm = ({ onSubmit, loading }) => {
         fullWidth
         margin="normal"
         required
+        disabled={loading}
       />
       <TextField
         label="Email"
@@ -43,6 +50,7 @@ export const RegisterForm = ({ onSubmit, loading }) => {
         fullWidth
         margin="normal"
         required
+        disabled={loading}
       />
       <TextField
         label="Full Name"
@@ -52,6 +60,7 @@ export const RegisterForm = ({ onSubmit, loading }) => {
         fullWidth
         margin="normal"
         required
+        disabled={loading}
       />
       <TextField
         label="Password"
@@ -62,6 +71,7 @@ export const RegisterForm = ({ onSubmit, loading }) => {
         fullWidth
         margin="normal"
         required
+        disabled={loading}
       />
       <TextField
         label="Confirm Password"
@@ -72,10 +82,19 @@ export const RegisterForm = ({ onSubmit, loading }) => {
         fullWidth
         margin="normal"
         required
+        disabled={loading}
       />
-      <Button type="submit" disabled={loading}>
-        {loading ? 'Registering...' : 'Register'}
+      <Button 
+        type="submit" 
+        variant="contained" 
+        fullWidth
+        sx={{ mt: 2 }}
+        disabled={loading}
+      >
+        {loading ? <CircularProgress size={24} /> : 'Register'}
       </Button>
     </form>
   );
 };
+
+export default RegisterForm;

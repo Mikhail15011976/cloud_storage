@@ -8,9 +8,10 @@ from django.contrib.auth.models import (
     Group
 )
 from django.conf import settings
-from django.core.validators import FileExtensionValidator
+from django.core.validators import FileExtensionValidator, RegexValidator
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
 
 class UserManager(BaseUserManager):
     """Кастомный менеджер для модели User"""
@@ -22,6 +23,25 @@ class UserManager(BaseUserManager):
         if not username:
             raise ValueError('User must have a username')
         
+        # Валидация полей перед созданием пользователя
+        username_validator = RegexValidator(
+            regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
+            message=_('Username must start with a letter, contain only letters and numbers, and be 4-20 characters long.')
+        )
+        username_validator(username)
+        
+        email_validator = RegexValidator(
+            regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
+            message=_('Enter a valid email address.')
+        )
+        email_validator(email)
+        
+        full_name_validator = RegexValidator(
+            regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
+            message=_('Full name can only contain letters, spaces and hyphens.')
+        )
+        full_name_validator(full_name)
+        
         email = self.normalize_email(email)
         user = self.model(
             username=username,
@@ -29,7 +49,12 @@ class UserManager(BaseUserManager):
             full_name=full_name,
             **extra_fields
         )
-        user.set_password(password)
+        
+        if password:
+            from .validators import PasswordValidator
+            PasswordValidator()(password)
+            user.set_password(password)
+        
         user.save(using=self._db)
         return user
     
@@ -53,43 +78,69 @@ class User(AbstractBaseUser, PermissionsMixin):
         _('username'),
         max_length=20,
         unique=True,
-        help_text=_('Required. 4-20 characters. Letters and digits only.'),
+        validators=[
+            RegexValidator(
+                regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
+                message=_('Username must start with a letter, contain only letters and numbers, and be 4-20 characters long.')
+            )
+        ],
+        help_text=_('Required. 4-20 characters. Letters and digits only. First character must be a letter.'),
     )
+    
     email = models.EmailField(
         _('email address'),
         max_length=255,
         unique=True,
+        validators=[
+            RegexValidator(
+                regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
+                message=_('Enter a valid email address.')
+            )
+        ],
     )
+    
     full_name = models.CharField(
         _('full name'),
         max_length=255,
+        validators=[
+            RegexValidator(
+                regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
+                message=_('Full name can only contain letters, spaces and hyphens.')
+            )
+        ]
     )
+    
     storage_directory = models.CharField(
         _('storage directory'),
         max_length=255,
         unique=True,
         blank=True,
     )
+    
     storage_quota = models.BigIntegerField(
         _('storage quota'),
         default=100*1024*1024,  # 100MB по умолчанию
         help_text=_('Storage quota in bytes'),
     )
+    
     is_active = models.BooleanField(
         _('active'),
         default=True,
         help_text=_('Designates whether this user should be treated as active.'),
     )
+    
     is_staff = models.BooleanField(
         _('staff status'),
         default=False,
         help_text=_('Designates whether the user can log into this admin site.'),
     )
+    
     is_admin = models.BooleanField(
         _('admin status'),
         default=False,
         help_text=_('Designates whether the user has admin privileges.'),
     )
+    
     date_joined = models.DateTimeField(
         _('date joined'),
         auto_now_add=True,
@@ -135,7 +186,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def has_perm(self, perm, obj=None):
         """Проверка прав доступа"""
-        return self.is_admin
+        return self.is_admin or super().has_perm(perm, obj)
     
     def has_module_perms(self, app_label):
         """Проверка прав доступа к модулю"""
@@ -157,16 +208,25 @@ class File(models.Model):
         default=uuid.uuid4,
         editable=False
     )
+    
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='files',
         verbose_name=_('owner'),
     )
+    
     original_name = models.CharField(
         _('original filename'),
         max_length=255,
+        validators=[
+            RegexValidator(
+                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\']+$',
+                message=_('Filename contains invalid characters.')
+            )
+        ]
     )
+    
     file = models.FileField(
         _('file'),
         upload_to='user_uploads/%Y/%m/%d',
@@ -177,24 +237,35 @@ class File(models.Model):
             )
         ],
     )
+    
     size = models.BigIntegerField(
         _('file size'),
         help_text=_('File size in bytes'),
     )
+    
     upload_date = models.DateTimeField(
         _('upload date'),
         auto_now_add=True,
     )
+    
     last_download = models.DateTimeField(
         _('last download'),
         null=True,
         blank=True,
     )
+    
     comment = models.TextField(
         _('comment'),
         blank=True,
         max_length=500,
+        validators=[
+            RegexValidator(
+                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\'\"]*$',
+                message=_('Comment contains invalid characters.')
+            )
+        ]
     )
+    
     shared_link = models.CharField(
         _('share link'),
         max_length=50,
@@ -202,10 +273,12 @@ class File(models.Model):
         blank=True,
         null=True,
     )
+    
     is_public = models.BooleanField(
         _('is public'),
         default=False,
     )
+    
     file_type = models.CharField(
         _('file type'),
         max_length=50,
@@ -232,6 +305,16 @@ class File(models.Model):
     def __str__(self):
         return f"{self.original_name} (Owner: {self.owner.username})"
 
+    def clean(self):
+        """Валидация перед сохранением"""
+        if not self.pk:  # Only for new files
+            if self.owner.storage_used + self.size > self.owner.storage_quota:
+                raise ValidationError(
+                    _('File exceeds storage quota. Available: %(available)s bytes') % {
+                        'available': self.owner.storage_left
+                    }
+                )
+
     def save(self, *args, **kwargs):
         """Автоматическая обработка перед сохранением"""
         if not self.pk:  # Только при создании
@@ -242,6 +325,7 @@ class File(models.Model):
             if not self.shared_link and self.is_public:
                 self.shared_link = uuid.uuid4().hex[:15]
         
+        self.full_clean()  # Вызывает clean() и все валидаторы
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Typography, Box, CircularProgress } from '@mui/material';
 import { FileList, UploadButton } from '../components/files';
-import { Header } from '../components/layout';
+import Header from '../components/layout/Header';
 import { getFiles } from '../services/files';
 
-export const Dashboard = () => {
+export default function Dashboard() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +37,7 @@ export const Dashboard = () => {
 
   return (
     <>
-      <Header isAuthenticated onLogout={() => console.log('logout')} />
+      <Header />
       <Container maxWidth="lg">
         <Box my={4}>
           <Typography variant="h4" gutterBottom>
@@ -54,4 +54,4 @@ export const Dashboard = () => {
       </Container>
     </>
   );
-};
+}

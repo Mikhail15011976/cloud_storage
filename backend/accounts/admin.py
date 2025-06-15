@@ -147,6 +147,6 @@ class GroupAdmin(BaseGroupAdmin):
 
 # Отмена регистрации стандартной GroupAdmin
 admin.site.unregister(Group)
-# Регистрация нашей кастомной GroupAdmin
+# Регистрация кастомной GroupAdmin
 admin.site.register(Group, GroupAdmin)
 admin.site.register(User, CustomUserAdmin)

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Button } from '../ui/Button';
-import { TextField } from '@mui/material';
+import { TextField, Button, CircularProgress, Alert } from '@mui/material';
 
-export const LoginForm = ({ onSubmit, loading }) => {
+const LoginForm = ({ onSubmit, loading }) => {
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -30,6 +29,7 @@ export const LoginForm = ({ onSubmit, loading }) => {
         fullWidth
         margin="normal"
         required
+        disabled={loading}
       />
       <TextField
         label="Password"
@@ -40,10 +40,19 @@ export const LoginForm = ({ onSubmit, loading }) => {
         fullWidth
         margin="normal"
         required
+        disabled={loading}
       />
-      <Button type="submit" disabled={loading}>
-        {loading ? 'Logging in...' : 'Login'}
+      <Button 
+        type="submit" 
+        variant="contained" 
+        fullWidth
+        sx={{ mt: 2 }}
+        disabled={loading}
+      >
+        {loading ? <CircularProgress size={24} /> : 'Login'}
       </Button>
     </form>
   );
 };
+
+export default LoginForm;

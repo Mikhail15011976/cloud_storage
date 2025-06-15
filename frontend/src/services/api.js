@@ -1,9 +1,9 @@
 import axios from 'axios';
-import { logout } from '../store/slices/authSlice';
 import { store } from '../store/store';
+import { logoutUser } from '../store/slices/authSlice';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
 });
 
 api.interceptors.request.use((config) => {
@@ -18,7 +18,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      store.dispatch(logout());
+      store.dispatch(logoutUser());
     }
     return Promise.reject(error);
   }

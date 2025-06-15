@@ -1,34 +1,17 @@
 import React, { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { 
-  Container, 
-  Typography, 
-  Box, 
-  CircularProgress, 
-  Paper, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow 
-} from '@mui/material';
-import { Header } from '../components/layout';
+import { Container, Typography, Box, CircularProgress, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import Header from '../components/layout/Header';
 import { getUsers } from '../services/users';
 
-export const Admin = () => {
-  const dispatch = useDispatch();
-  const { user } = useSelector(state => state.auth);
+export default function Admin() {
   const [users, setUsers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        if (user?.is_admin) {
-          const data = await getUsers();
-          setUsers(data);
-        }
+        const data = await getUsers();
+        setUsers(data);
       } catch (error) {
         console.error('Error fetching users:', error);
       } finally {
@@ -37,7 +20,7 @@ export const Admin = () => {
     };
 
     fetchUsers();
-  }, [user]);
+  }, []);
 
   if (loading) {
     return (
@@ -49,13 +32,12 @@ export const Admin = () => {
 
   return (
     <>
-      <Header isAuthenticated />
+      <Header />
       <Container maxWidth="lg">
         <Box my={4}>
           <Typography variant="h4" gutterBottom>
             Admin Dashboard
           </Typography>
-          
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
@@ -84,4 +66,4 @@ export const Admin = () => {
       </Container>
     </>
   );
-};
+}

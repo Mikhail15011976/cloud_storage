@@ -1,8 +1,8 @@
 import React from 'react';
-import { Container, Typography, Box, Button } from '@mui/material';
+import { Container, Box, Typography, Button } from '@mui/material';
 import { Link } from 'react-router-dom';
 
-export const Home = () => {
+export default function Home() {
   return (
     <Container maxWidth="md">
       <Box textAlign="center" mt={5}>
@@ -36,4 +36,4 @@ export const Home = () => {
       </Box>
     </Container>
   );
-};
+}
