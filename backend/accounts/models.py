@@ -325,7 +325,7 @@ class File(models.Model):
             if not self.shared_link and self.is_public:
                 self.shared_link = uuid.uuid4().hex[:15]
         
-        self.full_clean()  # Вызывает clean() и все валидаторы
+        self.full_clean() 
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

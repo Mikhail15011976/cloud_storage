@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework import filters
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, Http404
@@ -14,6 +14,8 @@ import uuid
 from .models import File, User
 from .serializers import FileSerializer, UserSerializer, RegisterSerializer, LoginSerializer
 from rest_framework.authtoken.models import Token
+from django.core.exceptions import ValidationError
+from .validators import FileNameValidator
 
 class FileViewSet(viewsets.ModelViewSet):
     queryset = File.objects.all()
@@ -74,6 +76,73 @@ class FileViewSet(viewsets.ModelViewSet):
             file.save()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['patch'])
+    def rename(self, request, pk=None):
+        file = self.get_object()
+        new_name = request.data.get('new_name')
+        
+        if not new_name:
+            return Response(
+                {"detail": "New name is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Валидация имени файла
+        try:
+            FileNameValidator()(new_name)
+        except ValidationError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        file.original_name = new_name
+        file.save()
+        
+        return Response(
+            FileSerializer(file).data,
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['patch'])
+    def update_comment(self, request, pk=None):
+        file = self.get_object()
+        new_comment = request.data.get('comment', '')
+        
+        try:
+            file.comment = new_comment
+            file.full_clean()  # Вызовет clean() и все валидаторы
+            file.save()
+        except ValidationError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        return Response(
+            FileSerializer(file).data,
+            status=status.HTTP_200_OK
+        )
+
+class PublicFileDownloadView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request, shared_link):
+        try:
+            file = File.objects.get(shared_link=shared_link, is_public=True)
+        except File.DoesNotExist:
+            raise Http404("File not found or not available for public access")
+        
+        file.last_download = timezone.now()
+        file.save()
+        
+        try:
+            response = FileResponse(open(file.file.path, 'rb'))
+            response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
+            return response
+        except FileNotFoundError:
+            raise Http404("File not found on server")
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     
@@ -104,10 +173,16 @@ class LoginView(APIView):
             'token': token.key
         })
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
+class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [IsAuthenticated]
+        else:
+            permission_classes = [IsAuthenticated, IsAdminUser]
+        return [permission() for permission in permission_classes]
     
     def get_queryset(self):
         if self.request.user.is_admin:
