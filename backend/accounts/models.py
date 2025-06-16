@@ -19,26 +19,26 @@ class UserManager(BaseUserManager):
     def create_user(self, username, email, full_name, password=None, **extra_fields):
         """Создание обычного пользователя"""
         if not email:
-            raise ValueError('User must have an email address')
+            raise ValueError('Пользователь должен иметь email')
         if not username:
-            raise ValueError('User must have a username')
+            raise ValueError('Пользователь должен иметь username')
         
         # Валидация полей перед созданием пользователя
         username_validator = RegexValidator(
             regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
-            message=_('Username must start with a letter, contain only letters and numbers, and be 4-20 characters long.')
+            message=_('Username должен начинаться с буквы, содержать только буквы и цифры, и быть длиной 4-20 символов.')
         )
         username_validator(username)
         
         email_validator = RegexValidator(
             regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
-            message=_('Enter a valid email address.')
+            message=_('Введите корректный email адрес.')
         )
         email_validator(email)
         
         full_name_validator = RegexValidator(
             regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
-            message=_('Full name can only contain letters, spaces and hyphens.')
+            message=_('Полное имя может содержать только буквы, пробелы и дефисы.')
         )
         full_name_validator(full_name)
         
@@ -65,9 +65,9 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_admin', True)
         
         if extra_fields.get('is_staff') is not True:
-            raise ValueError('Superuser must have is_staff=True.')
+            raise ValueError('Суперпользователь должен иметь is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser must have is_superuser=True.')
+            raise ValueError('Суперпользователь должен иметь is_superuser=True.')
         
         return self.create_user(username, email, full_name, password, **extra_fields)
 
@@ -81,10 +81,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         validators=[
             RegexValidator(
                 regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
-                message=_('Username must start with a letter, contain only letters and numbers, and be 4-20 characters long.')
+                message=_('Username должен начинаться с буквы, содержать только буквы и цифры, и быть длиной 4-20 символов.')
             )
         ],
-        help_text=_('Required. 4-20 characters. Letters and digits only. First character must be a letter.'),
+        help_text=_('Обязательное поле. 4-20 символов. Только буквы и цифры. Первый символ должен быть буквой.'),
     )
     
     email = models.EmailField(
@@ -94,7 +94,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         validators=[
             RegexValidator(
                 regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
-                message=_('Enter a valid email address.')
+                message=_('Введите корректный email адрес.')
             )
         ],
     )
@@ -105,7 +105,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         validators=[
             RegexValidator(
                 regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
-                message=_('Full name can only contain letters, spaces and hyphens.')
+                message=_('Полное имя может содержать только буквы, пробелы и дефисы.')
             )
         ]
     )
@@ -120,25 +120,25 @@ class User(AbstractBaseUser, PermissionsMixin):
     storage_quota = models.BigIntegerField(
         _('storage quota'),
         default=100*1024*1024,  # 100MB по умолчанию
-        help_text=_('Storage quota in bytes'),
+        help_text=_('Квота хранилища в байтах'),
     )
     
     is_active = models.BooleanField(
         _('active'),
         default=True,
-        help_text=_('Designates whether this user should be treated as active.'),
+        help_text=_('Указывает, должен ли пользователь считаться активным.'),
     )
     
     is_staff = models.BooleanField(
         _('staff status'),
         default=False,
-        help_text=_('Designates whether the user can log into this admin site.'),
+        help_text=_('Указывает, может ли пользователь входить в админ-панель.'),
     )
     
     is_admin = models.BooleanField(
         _('admin status'),
         default=False,
-        help_text=_('Designates whether the user has admin privileges.'),
+        help_text=_('Указывает, имеет ли пользователь права администратора.'),
     )
     
     date_joined = models.DateTimeField(
@@ -164,6 +164,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = _('user')
         verbose_name_plural = _('users')
         ordering = ['-date_joined']
+        permissions = [
+            ("can_view_all_files", "Может просматривать все файлы"),
+            ("can_manage_users", "Может управлять пользователями"),
+        ]
     
     def __str__(self):
         return f'{self.username} ({self.full_name})'
@@ -182,15 +186,21 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def storage_left(self):
         """Оставшееся дисковое пространство"""
-        return self.storage_quota - self.storage_used
+        return max(0, self.storage_quota - self.storage_used)
     
     def has_perm(self, perm, obj=None):
         """Проверка прав доступа"""
-        return self.is_admin or super().has_perm(perm, obj)
+        if self.is_admin:
+            return True
+        return super().has_perm(perm, obj)
     
     def has_module_perms(self, app_label):
         """Проверка прав доступа к модулю"""
         return True
+    
+    def can_upload_file(self, file_size):
+        """Проверка возможности загрузки файла"""
+        return self.storage_left >= file_size
 
 class File(models.Model):
     """Модель для хранения файлов в облачном хранилище"""
@@ -222,7 +232,7 @@ class File(models.Model):
         validators=[
             RegexValidator(
                 regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\']+$',
-                message=_('Filename contains invalid characters.')
+                message=_('Имя файла содержит недопустимые символы.')
             )
         ]
     )
@@ -233,14 +243,14 @@ class File(models.Model):
         validators=[
             FileExtensionValidator(
                 allowed_extensions=['pdf', 'docx', 'jpg', 'jpeg', 'png', 'txt'],
-                message=_('File type not allowed. Allowed extensions: pdf, docx, jpg, png, txt')
+                message=_('Тип файла не разрешен. Разрешенные расширения: pdf, docx, jpg, png, txt')
             )
         ],
     )
     
     size = models.BigIntegerField(
         _('file size'),
-        help_text=_('File size in bytes'),
+        help_text=_('Размер файла в байтах'),
     )
     
     upload_date = models.DateTimeField(
@@ -261,7 +271,7 @@ class File(models.Model):
         validators=[
             RegexValidator(
                 regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\'\"]*$',
-                message=_('Comment contains invalid characters.')
+                message=_('Комментарий содержит недопустимые символы.')
             )
         ]
     )
@@ -303,14 +313,14 @@ class File(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.original_name} (Owner: {self.owner.username})"
+        return f"{self.original_name} (Владелец: {self.owner.username})"
 
     def clean(self):
         """Валидация перед сохранением"""
-        if not self.pk:  # Only for new files
-            if self.owner.storage_used + self.size > self.owner.storage_quota:
+        if not self.pk:  # Только для новых файлов
+            if not self.owner.can_upload_file(self.size):
                 raise ValidationError(
-                    _('File exceeds storage quota. Available: %(available)s bytes') % {
+                    _('Файл превышает квоту хранилища. Доступно: %(available)s байт') % {
                         'available': self.owner.storage_left
                     }
                 )
@@ -355,3 +365,9 @@ class File(models.Model):
                 return f"{size:.1f} {unit}"
             size /= 1024.0
         return f"{size:.1f} TB"
+
+    def can_be_accessed_by(self, user):
+        """Проверка доступа пользователя к файлу"""
+        if self.is_public:
+            return True
+        return user.is_authenticated and (user.is_admin or self.owner == user)

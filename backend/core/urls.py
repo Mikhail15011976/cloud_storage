@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from django.contrib.auth.views import LogoutView as DjangoLogoutView
 
 # Настройки Swagger/OpenAPI
 schema_view = get_schema_view(
@@ -41,6 +42,8 @@ urlpatterns = [
     
     # Стандартные URL для аутентификации DRF
     path('api/auth/', include('rest_framework.urls', namespace='rest_framework')),
+
+    path('accounts/logout/', DjangoLogoutView.as_view(next_page='/swagger/'), name='django-logout'),
 ]
 
 # Обработка медиа-файлов в режиме разработки

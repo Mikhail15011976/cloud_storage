@@ -1,21 +1,40 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
-from rest_framework import filters
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, Http404
 from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from rest_framework.authtoken.models import Token
+from django.contrib.auth import logout
+from django.core.exceptions import ValidationError
 import os
 import uuid
+
 from .models import File, User
-from .serializers import FileSerializer, UserSerializer, RegisterSerializer, LoginSerializer
-from rest_framework.authtoken.models import Token
-from django.core.exceptions import ValidationError
+from .serializers import (
+    FileSerializer,
+    UserSerializer,
+    RegisterSerializer,
+    LoginSerializer
+)
+from .permissions import (
+    IsAdminUser,
+    IsOwnerOrAdmin,
+    IsUserOwnerOrAdmin,
+    IsFilePublicOrOwnerOrAdmin
+)
 from .validators import FileNameValidator
+
+try:
+    from rest_framework_simplejwt.tokens import RefreshToken
+    JWT_INSTALLED = True
+except ImportError:
+    JWT_INSTALLED = False
+
 
 class FileViewSet(viewsets.ModelViewSet):
     queryset = File.objects.all()
@@ -25,7 +44,7 @@ class FileViewSet(viewsets.ModelViewSet):
     search_fields = ['original_name', 'comment']
     ordering_fields = ['upload_date', 'last_download', 'size']
     ordering = ['-upload_date']
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -35,6 +54,11 @@ class FileViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         file_obj = self.request.FILES['file']
+        if self.request.user.storage_left < file_obj.size:
+            raise ValidationError(
+                {"detail": "Недостаточно места в хранилище. Доступно: {} байт".format(
+                    self.request.user.storage_left)}
+            )
         serializer.save(
             owner=self.request.user,
             original_name=file_obj.name,
@@ -44,12 +68,6 @@ class FileViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
         file = self.get_object()
-        if not request.user.is_admin and file.owner != request.user:
-            return Response(
-                {"detail": "You do not have permission to access this file."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
         file.last_download = timezone.now()
         file.save()
         
@@ -58,7 +76,7 @@ class FileViewSet(viewsets.ModelViewSet):
             response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
             return response
         except FileNotFoundError:
-            raise Http404("File not found on server")
+            raise Http404("Файл не найден на сервере")
 
     @action(detail=True, methods=['post', 'delete'])
     def share(self, request, pk=None):
@@ -76,53 +94,6 @@ class FileViewSet(viewsets.ModelViewSet):
             file.save()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=['patch'])
-    def rename(self, request, pk=None):
-        file = self.get_object()
-        new_name = request.data.get('new_name')
-        
-        if not new_name:
-            return Response(
-                {"detail": "New name is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Валидация имени файла
-        try:
-            FileNameValidator()(new_name)
-        except ValidationError as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        file.original_name = new_name
-        file.save()
-        
-        return Response(
-            FileSerializer(file).data,
-            status=status.HTTP_200_OK
-        )
-
-    @action(detail=True, methods=['patch'])
-    def update_comment(self, request, pk=None):
-        file = self.get_object()
-        new_comment = request.data.get('comment', '')
-        
-        try:
-            file.comment = new_comment
-            file.full_clean()  # Вызовет clean() и все валидаторы
-            file.save()
-        except ValidationError as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        return Response(
-            FileSerializer(file).data,
-            status=status.HTTP_200_OK
-        )
 
 class PublicFileDownloadView(APIView):
     permission_classes = [AllowAny]
@@ -131,7 +102,7 @@ class PublicFileDownloadView(APIView):
         try:
             file = File.objects.get(shared_link=shared_link, is_public=True)
         except File.DoesNotExist:
-            raise Http404("File not found or not available for public access")
+            raise Http404("Файл не найден или недоступен для публичного доступа")
         
         file.last_download = timezone.now()
         file.save()
@@ -141,7 +112,8 @@ class PublicFileDownloadView(APIView):
             response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
             return response
         except FileNotFoundError:
-            raise Http404("File not found on server")
+            raise Http404("Файл не найден на сервере")
+
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -156,6 +128,7 @@ class RegisterView(APIView):
                 'token': token.key
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -173,23 +146,73 @@ class LoginView(APIView):
             'token': token.key
         })
 
+
+class LogoutView(APIView):
+    """
+    API endpoint для выхода пользователя из системы.
+    Поддерживает:
+    - TokenAuthentication (удаляет токен)
+    - SessionAuthentication (завершает сессию)
+    - JWT Authentication (если установлен simplejwt, добавляет токен в blacklist)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            # 1. Обработка TokenAuthentication
+            if hasattr(request, 'auth') and isinstance(request.auth, Token):
+                request.auth.delete()
+            
+            # 2. Обработка JWT Authentication (если установлен)
+            if JWT_INSTALLED:
+                refresh_token = request.data.get("refresh_token")
+                if refresh_token:
+                    token = RefreshToken(refresh_token)
+                    token.blacklist()
+            
+            # 3. Обработка SessionAuthentication
+            if request.user.is_authenticated:
+                logout(request)
+            
+            response = Response(
+                {"detail": "Вы успешно вышли из системы"},
+                status=status.HTTP_200_OK
+            )
+            
+            # Очистка cookies
+            response.delete_cookie('auth_token')
+            response.delete_cookie('sessionid')
+            response.delete_cookie('csrftoken')
+            
+            return response
+            
+        except Exception as e:
+            return Response(
+                {"detail": f"Ошибка при выходе из системы: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            permission_classes = [IsAuthenticated]
-        else:
-            permission_classes = [IsAuthenticated, IsAdminUser]
-        return [permission() for permission in permission_classes]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     
     def get_queryset(self):
         if self.request.user.is_admin:
             return User.objects.all()
         return User.objects.filter(id=self.request.user.id)
 
-    @action(detail=False, methods=['get'])
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance == request.user:
+            return Response(
+                {"detail": "Вы не можете удалить свою учетную запись"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
