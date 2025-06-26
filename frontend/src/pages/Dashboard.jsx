@@ -3,6 +3,7 @@ import { Container, Typography, Box, CircularProgress } from '@mui/material';
 import { FileList, UploadButton } from '../components/files';
 import Header from '../components/layout/Header';
 import { getFiles, deleteFile, renameFile, updateFileComment } from '../services/files';
+import api from '../services/api';
 
 export default function Dashboard() {
   const [files, setFiles] = useState([]);
