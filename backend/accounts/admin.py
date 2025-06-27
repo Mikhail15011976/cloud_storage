@@ -53,7 +53,7 @@ class CustomUserAdmin(UserAdmin):
     form = forms.ModelForm
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
-        ('Personal info', {'fields': ('full_name', 'email', 'storage_directory')}),
+        ('Personal info', {'fields': ('full_name', 'email', 'storage_directory', 'is_active')}),
         ('Groups', {'fields': ('groups',)}),
         ('Permissions', {
             'fields': ('is_admin', 'is_staff', 'is_superuser', 'user_permissions'),
@@ -69,7 +69,7 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
     
-    list_display = ('username', 'email', 'full_name', 'get_group_names', 'date_joined', 'get_permission_status_display')
+    list_display = ('username', 'email', 'full_name', 'is_active', 'get_group_names', 'date_joined', 'get_permission_status_display')
     list_filter = ('is_admin', 'is_staff', 'is_superuser', 'groups', 'date_joined')
     search_fields = ('username', 'email', 'full_name')
     ordering = ('-date_joined',)

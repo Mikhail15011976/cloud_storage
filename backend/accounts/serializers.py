@@ -15,15 +15,13 @@ class FileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'size', 'upload_date', 'owner', 
                           'shared_link', 'file_type', 'last_download']
 
-
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'full_name', 'is_admin', 
+        fields = ['id', 'username', 'email', 'full_name', 'is_admin', 'is_active',
                  'storage_directory', 'storage_quota', 'date_joined']
-        read_only_fields = ['id', 'is_admin', 'storage_directory', 
+        read_only_fields = ['id', 'is_admin', 'is_active', 'storage_directory', 
                           'storage_quota', 'date_joined']
-
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[PasswordValidator()])

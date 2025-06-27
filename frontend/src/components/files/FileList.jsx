@@ -2,9 +2,9 @@ import React from 'react';
 import { FileItem } from './FileItem';
 import { List, Paper, Typography } from '@mui/material';
 
-export const FileList = ({ files, onDelete, onDownload, onShare }) => {
+export const FileList = ({ files, onDelete, onDownload, onShare, onRename, onCommentUpdate }) => {
   if (files.length === 0) {
-    return <Typography>No files uploaded yet</Typography>;
+    return <Typography>Нет файлов в этой категории</Typography>;
   }
 
   return (
@@ -17,6 +17,8 @@ export const FileList = ({ files, onDelete, onDownload, onShare }) => {
             onDelete={onDelete}
             onDownload={onDownload}
             onShare={onShare}
+            onRename={onRename}
+            onCommentUpdate={onCommentUpdate}
           />
         ))}
       </List>

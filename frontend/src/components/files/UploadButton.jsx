@@ -4,7 +4,7 @@ import { Button, LinearProgress } from '@mui/material';
 import { uploadFile } from '../../services/files';
 import { addFile } from '../../store/slices/filesSlice';
 
-export const UploadButton = () => {
+export const UploadButton = ({ onSuccess }) => {
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const dispatch = useDispatch();
@@ -28,6 +28,9 @@ export const UploadButton = () => {
       });
 
       dispatch(addFile(response.data));
+      if (onSuccess) {
+        onSuccess(response.data);
+      }
     } catch (error) {
       console.error('Upload failed:', error);
     } finally {
@@ -37,7 +40,7 @@ export const UploadButton = () => {
   };
 
   return (
-    <div style={{ width: '100%', marginBottom: '20px' }}>
+    <div style={{ width: '100%', margin: '10px 0 20px 0', padding: '0 10px' }}>
       <input
         accept="*/*"
         style={{ display: 'none' }}
@@ -53,7 +56,7 @@ export const UploadButton = () => {
           disabled={uploading}
           fullWidth
         >
-          {uploading ? 'Uploading...' : 'Upload File'}
+          {uploading ? 'Загрузка...' : 'Загрузить'}
         </Button>
       </label>
       {uploading && (

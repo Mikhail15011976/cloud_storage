@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Typography, Box, CircularProgress } from '@mui/material';
+import { Container, Typography, Box, CircularProgress, Grid, List, ListItem, ListItemText, Paper } from '@mui/material';
 import { FileList, UploadButton } from '../components/files';
-import Header from '../components/layout/Header';
 import { getFiles, deleteFile, renameFile, updateFileComment } from '../services/files';
 import api from '../services/api';
 
 export default function Dashboard() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('uploads');
 
   useEffect(() => {
     fetchFiles();
@@ -73,6 +73,23 @@ export default function Dashboard() {
     }
   };
 
+  const getFilteredFiles = () => {
+    switch (selectedCategory) {
+      case 'uploads':
+        return files;
+      case 'photos':
+        return files.filter(file => file.file_type === 'IMAGE');
+      case 'videos':
+        return files.filter(file => file.file_type === 'VIDEO');
+      case 'documents':
+        return files.filter(file => file.file_type === 'PDF' || file.file_type === 'WORD' || file.file_type === 'TEXT');
+      case 'trash':
+        return [];
+      default:
+        return files;
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" mt={4}>
@@ -82,24 +99,50 @@ export default function Dashboard() {
   }
 
   return (
-    <>
-      <Header />
-      <Container maxWidth="lg">
-        <Box my={4}>
-          <Typography variant="h4" gutterBottom>
-            My Files
-          </Typography>
-          <UploadButton onSuccess={(newFile) => setFiles([...files, newFile])} />
-          <FileList
-            files={files}
-            onDelete={handleDelete}
-            onDownload={handleDownload}
-            onShare={handleShare}
-            onRename={handleRename}
-            onCommentUpdate={handleCommentUpdate}
-          />
-        </Box>
-      </Container>
-    </>
+    <Container maxWidth="lg">
+      <Box my={4}>
+        <Typography variant="h4" gutterBottom>
+          My Files
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={3}>
+            <Paper elevation={3} sx={{ height: '100%' }}>
+              <List>
+                {['uploads', 'photos', 'videos', 'documents', 'trash'].map((category) => (
+                  <ListItem 
+                    key={category}
+                    button
+                    selected={selectedCategory === category}
+                    onClick={() => setSelectedCategory(category)}
+                  >
+                    <ListItemText 
+                      primary={
+                        category === 'uploads' ? 'Загрузки' :
+                        category === 'photos' ? 'Фото' :
+                        category === 'videos' ? 'Видео' :
+                        category === 'documents' ? 'Документы' :
+                        'Корзина'
+                      } 
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={9}>
+            <UploadButton onSuccess={(newFile) => setFiles([...files, newFile])} />
+            <FileList
+              files={getFilteredFiles()}
+              onDelete={handleDelete}
+              onDownload={handleDownload}
+              onShare={handleShare}
+              onRename={handleRename}
+              onCommentUpdate={handleCommentUpdate}
+            />
+          </Grid>
+        </Grid>
+      </Box>
+    </Container>
   );
 }
