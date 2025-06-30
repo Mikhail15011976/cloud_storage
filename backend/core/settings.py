@@ -18,7 +18,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-123')
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.1.127']
 
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')
 
@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     # Сторонние приложения
     'rest_framework',
     'rest_framework.authtoken',
-    'corsheaders',
+    'corsheaders',    
     'drf_yasg',
     'django_filters',
     
@@ -137,12 +137,17 @@ REST_FRAMEWORK = {
 }
 
 # Настройки CORS
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://192.168.1.127:3000',  
+]
+
 CORS_ALLOW_CREDENTIALS = True
 
 # Международные настройки
-LANGUAGE_CODE = 'ru-ru'
-TIME_ZONE = 'Europe/Moscow'
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE ='UTC'
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True

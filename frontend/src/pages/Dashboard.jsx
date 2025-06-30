@@ -1,5 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Typography, Box, CircularProgress, Grid, List, ListItem, ListItemText, Paper } from '@mui/material';
+import { 
+  Container, 
+  Typography, 
+  Box, 
+  CircularProgress, 
+  Grid, 
+  List, 
+  ListItem, 
+  ListItemIcon,
+  ListItemText, 
+  Paper,
+  Stack,
+  Divider
+} from '@mui/material';
+import {
+  Folder as FolderIcon,
+  Image as ImageIcon,
+  Movie as MovieIcon,
+  Description as DescriptionIcon,
+  Delete as DeleteIcon,
+  Upload as UploadIcon
+} from '@mui/icons-material';
 import { FileList, UploadButton } from '../components/files';
 import { getFiles, deleteFile, renameFile, updateFileComment } from '../services/files';
 import api from '../services/api';
@@ -82,11 +103,22 @@ export default function Dashboard() {
       case 'videos':
         return files.filter(file => file.file_type === 'VIDEO');
       case 'documents':
-        return files.filter(file => file.file_type === 'PDF' || file.file_type === 'WORD' || file.file_type === 'TEXT');
+        return files.filter(file => ['PDF', 'WORD', 'TEXT'].includes(file.file_type));
       case 'trash':
         return [];
       default:
         return files;
+    }
+  };
+
+  const getCategoryIcon = (category) => {
+    switch (category) {
+      case 'uploads': return <FolderIcon />;
+      case 'photos': return <ImageIcon />;
+      case 'videos': return <MovieIcon />;
+      case 'documents': return <DescriptionIcon />;
+      case 'trash': return <DeleteIcon />;
+      default: return <FolderIcon />;
     }
   };
 
@@ -99,50 +131,96 @@ export default function Dashboard() {
   }
 
   return (
-    <Container maxWidth="lg">
-      <Box my={4}>
-        <Typography variant="h4" gutterBottom>
-          My Files
-        </Typography>
-        <Grid container spacing={3}>
-          <Grid item xs={3}>
-            <Paper elevation={3} sx={{ height: '100%' }}>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Grid container spacing={3}>
+        {/* Левая колонка - меню и кнопка Upload */}
+        <Grid item xs={12} md={3}>
+          <Stack spacing={2} alignItems="center">
+            <UploadButton 
+              onSuccess={(newFile) => setFiles([...files, newFile])}
+              startIcon={<UploadIcon />}
+              sx={{ 
+                width: '100%',
+                maxWidth: 200,
+                py: 1.5,
+                fontWeight: 'bold'
+              }}
+            />
+            
+            <Paper elevation={3} sx={{ borderRadius: 2, width: '100%' }}>
               <List>
                 {['uploads', 'photos', 'videos', 'documents', 'trash'].map((category) => (
-                  <ListItem 
-                    key={category}
-                    button
-                    selected={selectedCategory === category}
-                    onClick={() => setSelectedCategory(category)}
-                  >
-                    <ListItemText 
-                      primary={
-                        category === 'uploads' ? 'Загрузки' :
-                        category === 'photos' ? 'Фото' :
-                        category === 'videos' ? 'Видео' :
-                        category === 'documents' ? 'Документы' :
-                        'Корзина'
-                      } 
-                    />
-                  </ListItem>
+                  <React.Fragment key={category}>
+                    <ListItem 
+                      button
+                      selected={selectedCategory === category}
+                      onClick={() => setSelectedCategory(category)}
+                      sx={{
+                        '&.Mui-selected': {
+                          backgroundColor: 'primary.light',
+                          '&:hover': {
+                            backgroundColor: 'primary.light',
+                          }
+                        }
+                      }}
+                    >
+                      <ListItemIcon>
+                        {getCategoryIcon(category)}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={
+                          category === 'uploads' ? 'All Files' :
+                          category === 'photos' ? 'Images' :
+                          category === 'videos' ? 'Videos' :
+                          category === 'documents' ? 'Documents' :
+                          'Trash'
+                        } 
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                    <Divider />
+                  </React.Fragment>
                 ))}
               </List>
             </Paper>
-          </Grid>
-
-          <Grid item xs={9}>
-            <UploadButton onSuccess={(newFile) => setFiles([...files, newFile])} />
-            <FileList
-              files={getFilteredFiles()}
-              onDelete={handleDelete}
-              onDownload={handleDownload}
-              onShare={handleShare}
-              onRename={handleRename}
-              onCommentUpdate={handleCommentUpdate}
-            />
-          </Grid>
+          </Stack>
         </Grid>
-      </Box>
+
+        {/* Правая колонка - файлы */}
+        <Grid item xs={12} md={9}>
+          <Box 
+            display="flex"
+            justifyContent="center"
+            mb={3}
+            sx={{
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              pb: 2,
+              width: '100%'
+            }}
+          >
+            <Typography 
+              variant="h4" 
+              component="h1"
+              sx={{ 
+                fontWeight: 'bold',
+                color: 'text.primary'
+              }}
+            >
+              My Files
+            </Typography>
+          </Box>
+          
+          <FileList
+            files={getFilteredFiles()}
+            onDelete={handleDelete}
+            onDownload={handleDownload}
+            onShare={handleShare}
+            onRename={handleRename}
+            onCommentUpdate={handleCommentUpdate}
+          />
+        </Grid>
+      </Grid>
     </Container>
   );
 }
