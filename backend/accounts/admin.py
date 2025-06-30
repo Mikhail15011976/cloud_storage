@@ -59,7 +59,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('is_admin', 'is_staff', 'is_superuser', 'user_permissions'),
             'description': 'Set user permissions'
         }),
-        ('Important dates', {'fields': ('last_login',)}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
     
     add_fieldsets = (
@@ -69,18 +69,24 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
     
-    list_display = ('username', 'email', 'full_name', 'is_active', 'get_group_names', 'date_joined', 'get_permission_status_display')
+    list_display = ('username', 'email', 'full_name', 'is_active', 'get_group_names', 'date_joined', 'get_permission_status_display', 'get_user_permissions_display')
     list_filter = ('is_admin', 'is_staff', 'is_superuser', 'groups', 'date_joined')
     search_fields = ('username', 'email', 'full_name')
     ordering = ('-date_joined',)
     filter_horizontal = ('groups', 'user_permissions')
-    readonly_fields = ('date_joined',)
+    readonly_fields = ('date_joined', 'last_login')
     
     def get_group_names(self, obj):
+        """
+        Возвращает список имен групп, в которых состоит пользователь, для отображения в админ-панели.
+        """
         return ", ".join([group.name for group in obj.groups.all()])
     get_group_names.short_description = 'Groups'
     
     def get_permission_status_display(self, obj):
+        """
+        Возвращает статус прав пользователя (Superuser, Admin, Staff или Regular user) для отображения в админ-панели.
+        """
         if obj.is_superuser:
             return "Superuser"
         elif obj.is_admin:
@@ -90,6 +96,13 @@ class CustomUserAdmin(UserAdmin):
         return "Regular user"
     get_permission_status_display.short_description = 'Permissions'
     get_permission_status_display.admin_order_field = 'is_superuser'
+
+    def get_user_permissions_display(self, obj):
+        """
+        Возвращает список прав пользователя для отображения в админ-панели.
+        """
+        return ", ".join([perm.codename for perm in obj.user_permissions.all()])
+    get_user_permissions_display.short_description = 'User Permissions'
 
 class GroupAdmin(BaseGroupAdmin):
     list_display = ('name', 'get_user_count', 'user_actions')
