@@ -42,3 +42,4 @@ def sync_user_permissions(user):
     # Назначаем права пользователю
     user.user_permissions.set(permissions)
     user.save()
+    print(f"Permissions synced for user {user.username}: {permissions}")

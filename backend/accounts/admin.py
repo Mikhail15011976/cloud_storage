@@ -5,9 +5,10 @@ from django.contrib.auth.models import Group
 from django.utils.html import format_html
 from django.core.exceptions import ValidationError
 from django.urls import path, reverse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from .models import User
 from .validators import PasswordValidator
+
 
 class CustomUserCreationForm(forms.ModelForm):
     password1 = forms.CharField(
@@ -47,6 +48,7 @@ class CustomUserCreationForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
 
 class CustomUserAdmin(UserAdmin):
     add_form = CustomUserCreationForm
@@ -100,15 +102,25 @@ class CustomUserAdmin(UserAdmin):
     def get_user_permissions_display(self, obj):
         """
         Возвращает список прав пользователя для отображения в админ-панели.
+        Включает как прямые права, так и права, унаследованные от групп.
         """
-        return ", ".join([perm.codename for perm in obj.user_permissions.all()])
+        # Получаем прямые права пользователя
+        direct_permissions = [perm.codename for perm in obj.user_permissions.all()]
+        # Получаем права из групп
+        group_permissions = []
+        for group in obj.groups.all():
+            group_permissions.extend([perm.codename for perm in group.permissions.all()])
+        # Объединяем и удаляем дубликаты
+        all_permissions = list(set(direct_permissions + group_permissions))
+        return ", ".join(all_permissions) if all_permissions else "No permissions"
     get_user_permissions_display.short_description = 'User Permissions'
+
 
 class GroupAdmin(BaseGroupAdmin):
     list_display = ('name', 'get_user_count', 'user_actions')
     
     def get_user_count(self, obj):
-        return obj.custom_user_set.count()
+        return obj.user_set.count() 
     get_user_count.short_description = 'Users'
     
     def user_actions(self, obj):
@@ -131,9 +143,8 @@ class GroupAdmin(BaseGroupAdmin):
         return custom_urls + urls
     
     def group_users_view(self, request, object_id):
-        from django.shortcuts import render
         group = Group.objects.get(id=object_id)
-        users = group.custom_user_set.all()
+        users = group.user_set.all()
         context = {
             'group': group,
             'users': users,
@@ -158,8 +169,10 @@ class GroupAdmin(BaseGroupAdmin):
         
         return redirect(reverse('admin:auth_group_changelist'))
 
+
 # Отмена регистрации стандартной GroupAdmin
 admin.site.unregister(Group)
 # Регистрация кастомной GroupAdmin
 admin.site.register(Group, GroupAdmin)
+# Регистрация кастомной UserAdmin
 admin.site.register(User, CustomUserAdmin)

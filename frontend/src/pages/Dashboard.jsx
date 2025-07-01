@@ -40,7 +40,8 @@ export default function Dashboard() {
       const data = await getFiles();
       setFiles(data);
     } catch (error) {
-      console.error('Error fetching files:', error);
+      console.error('Error fetching files:', error.message);
+      console.error('Error details:', error.response?.data || error);
     } finally {
       setLoading(false);
     }
@@ -51,7 +52,8 @@ export default function Dashboard() {
       await deleteFile(id);
       setFiles(files.filter(file => file.id !== id));
     } catch (error) {
-      console.error('Error deleting file:', error);
+      console.error('Error deleting file:', error.message);
+      console.error('Error details:', error.response?.data || error);
     }
   };
 
@@ -68,7 +70,8 @@ export default function Dashboard() {
       const sharedLink = `${window.location.origin}/api/public/files/${response.data.shared_link}/`;
       alert(`Shareable link: ${sharedLink}`);
     } catch (error) {
-      console.error('Error sharing file:', error);
+      console.error('Error sharing file:', error.message);
+      console.error('Error details:', error.response?.data || error);
     }
   };
 
@@ -79,7 +82,8 @@ export default function Dashboard() {
         file.id === id ? { ...file, original_name: newName } : file
       ));
     } catch (error) {
-      console.error('Error renaming file:', error);
+      console.error('Error renaming file:', error.message);
+      console.error('Error details:', error.response?.data || error);
     }
   };
 
@@ -90,7 +94,8 @@ export default function Dashboard() {
         file.id === id ? { ...file, comment: newComment } : file
       ));
     } catch (error) {
-      console.error('Error updating comment:', error);
+      console.error('Error updating comment:', error.message);
+      console.error('Error details:', error.response?.data || error);
     }
   };
 
@@ -134,7 +139,7 @@ export default function Dashboard() {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Grid container spacing={3}>
         {/* Левая колонка - меню и кнопка Upload */}
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <Stack spacing={2} alignItems="center">
             <UploadButton 
               onSuccess={(newFile) => setFiles([...files, newFile])}
@@ -152,10 +157,10 @@ export default function Dashboard() {
                 {['uploads', 'photos', 'videos', 'documents', 'trash'].map((category) => (
                   <React.Fragment key={category}>
                     <ListItem 
-                      button
-                      selected={selectedCategory === category}
                       onClick={() => setSelectedCategory(category)}
+                      selected={selectedCategory === category}
                       sx={{
+                        cursor: 'pointer',
                         '&.Mui-selected': {
                           backgroundColor: 'primary.light',
                           '&:hover': {
@@ -187,7 +192,7 @@ export default function Dashboard() {
         </Grid>
 
         {/* Правая колонка - файлы */}
-        <Grid item xs={12} md={9}>
+        <Grid xs={12} md={9}>
           <Box 
             display="flex"
             justifyContent="center"

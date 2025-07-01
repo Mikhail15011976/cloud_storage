@@ -25,14 +25,14 @@ const Header = () => {
         
         {isAuthenticated ? (
           <>
+            <Typography variant="body1" sx={{ mr: 2 }}>
+              {user?.username}
+            </Typography>
             {user?.is_admin && (
               <Button color="inherit" component={Link} to="/admin">
                 Admin
               </Button>
             )}
-            <Button color="inherit" component={Link} to="/dashboard">
-              Dashboard
-            </Button>
             <Button color="inherit" onClick={handleLogout}>
               Logout
             </Button>
