@@ -6,7 +6,7 @@ from django.utils.html import format_html
 from django.core.exceptions import ValidationError
 from django.urls import path, reverse
 from django.shortcuts import redirect, render
-from .models import User
+from .models import User, File
 from .validators import PasswordValidator
 
 
@@ -120,7 +120,7 @@ class GroupAdmin(BaseGroupAdmin):
     list_display = ('name', 'get_user_count', 'user_actions')
     
     def get_user_count(self, obj):
-        return obj.user_set.count() 
+        return obj.custom_user_set.count() 
     get_user_count.short_description = 'Users'
     
     def user_actions(self, obj):
@@ -144,7 +144,7 @@ class GroupAdmin(BaseGroupAdmin):
     
     def group_users_view(self, request, object_id):
         group = Group.objects.get(id=object_id)
-        users = group.user_set.all()
+        users = group.custom_user_set.all()
         context = {
             'group': group,
             'users': users,
@@ -168,6 +168,19 @@ class GroupAdmin(BaseGroupAdmin):
             return redirect(reverse('admin:group-users', args=[object_id]))
         
         return redirect(reverse('admin:auth_group_changelist'))
+
+
+# Админка для модели File
+@admin.register(File)
+class FileAdmin(admin.ModelAdmin):
+    list_display = ('original_name', 'owner', 'size', 'upload_date', 'file_type')
+    list_filter = ('file_type', 'upload_date', 'owner')
+    search_fields = ('original_name', 'comment')
+    readonly_fields = ('upload_date', 'size', 'file_type')
+
+    def has_delete_permission(self, request, obj=None):
+        # Можно настроить права на удаление файлов, если нужно
+        return super().has_delete_permission(request, obj)
 
 
 # Отмена регистрации стандартной GroupAdmin

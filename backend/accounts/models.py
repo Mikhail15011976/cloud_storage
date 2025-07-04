@@ -13,6 +13,7 @@ from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 
+
 class UserManager(BaseUserManager):
     """Кастомный менеджер для модели User"""
     
@@ -25,19 +26,19 @@ class UserManager(BaseUserManager):
         
         # Валидация полей перед созданием пользователя
         username_validator = RegexValidator(
-            regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
+            regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}',
             message=_('Username должен начинаться с буквы, содержать только буквы и цифры, и быть длиной 4-20 символов.')
         )
         username_validator(username)
         
         email_validator = RegexValidator(
-            regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
+            regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
             message=_('Введите корректный email адрес.')
         )
         email_validator(email)
         
         full_name_validator = RegexValidator(
-            regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
+            regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+',
             message=_('Полное имя может содержать только буквы, пробелы и дефисы.')
         )
         full_name_validator(full_name)
@@ -71,6 +72,7 @@ class UserManager(BaseUserManager):
         
         return self.create_user(username, email, full_name, password, **extra_fields)
 
+
 class User(AbstractBaseUser, PermissionsMixin):
     """Кастомная модель пользователя"""
     
@@ -80,7 +82,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
         validators=[
             RegexValidator(
-                regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
+                regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}',
                 message=_('Username должен начинаться с буквы, содержать только буквы и цифры, и быть длиной 4-20 символов.')
             )
         ],
@@ -93,7 +95,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
         validators=[
             RegexValidator(
-                regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
+                regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
                 message=_('Введите корректный email адрес.')
             )
         ],
@@ -104,7 +106,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=255,
         validators=[
             RegexValidator(
-                regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
+                regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+',
                 message=_('Полное имя может содержать только буквы, пробелы и дефисы.')
             )
         ]
@@ -202,6 +204,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Проверка возможности загрузки файла"""
         return self.storage_left >= file_size
 
+
 class File(models.Model):
     """Модель для хранения файлов в облачном хранилище"""
     
@@ -231,7 +234,7 @@ class File(models.Model):
         max_length=255,
         validators=[
             RegexValidator(
-                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\']+$',
+                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\']+',
                 message=_('Имя файла содержит недопустимые символы.')
             )
         ]
@@ -251,6 +254,7 @@ class File(models.Model):
     size = models.BigIntegerField(
         _('file size'),
         help_text=_('Размер файла в байтах'),
+        default=0,  
     )
     
     upload_date = models.DateTimeField(
@@ -270,7 +274,7 @@ class File(models.Model):
         max_length=500,
         validators=[
             RegexValidator(
-                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\'\"]*$',
+                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\'\"]*',
                 message=_('Комментарий содержит недопустимые символы.')
             )
         ]
@@ -318,7 +322,9 @@ class File(models.Model):
     def clean(self):
         """Валидация перед сохранением"""
         if not self.pk:  # Только для новых файлов
-            if not self.owner.can_upload_file(self.size):
+            # Используем актуальный размер файла, если он доступен
+            file_size = self.size if self.size > 0 else (self.file.size if hasattr(self.file, 'size') else 0)
+            if not self.owner.can_upload_file(file_size):
                 raise ValidationError(
                     _('Файл превышает квоту хранилища. Доступно: %(available)s байт') % {
                         'available': self.owner.storage_left
@@ -328,12 +334,24 @@ class File(models.Model):
     def save(self, *args, **kwargs):
         """Автоматическая обработка перед сохранением"""
         if not self.pk:  # Только при создании
-            self.size = self.file.size
+            # Автоматически устанавливаем размер файла из атрибута file.size
+            if self.file and hasattr(self.file, 'size'):
+                self.size = self.file.size
+            else:
+                self.size = 0  # Временное значение, если размер недоступен
             self.original_name = os.path.basename(self.file.name)
             self.file_type = self.get_file_type()
             
             if not self.shared_link and self.is_public:
                 self.shared_link = uuid.uuid4().hex[:15]
+        else:
+            # При обновлении сохраняем старый размер, если файл не изменен
+            if not self.file or not hasattr(self.file, 'file'):
+                try:
+                    original = File.objects.get(pk=self.id)
+                    self.size = original.size
+                except File.DoesNotExist:
+                    self.size = 0
         
         self.full_clean() 
         super().save(*args, **kwargs)
