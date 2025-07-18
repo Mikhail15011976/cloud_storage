@@ -14,6 +14,16 @@ const Header = () => {
     navigate('/');
   };
 
+  const handleRegisterClick = () => {
+    if (isAuthenticated) {      
+      dispatch(logoutUser()).then(() => {
+        navigate('/register');
+      });
+    } else {
+      navigate('/register');
+    }
+  };
+
   return (
     <AppBar position="static">
       <Toolbar>
@@ -42,7 +52,7 @@ const Header = () => {
             <Button color="inherit" component={Link} to="/login">
               Login
             </Button>
-            <Button color="inherit" component={Link} to="/register">
+            <Button color="inherit" onClick={handleRegisterClick}>
               Register
             </Button>
           </>

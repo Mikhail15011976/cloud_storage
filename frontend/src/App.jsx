@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store } from './store/store';
-import { loadUserFromStorage, logoutUser } from './store/slices/authSlice';
+import { loadUserFromStorage } from './store/slices/authSlice';
+import { loadFilesFromStorage } from './store/slices/filesSlice';
 import Header from './components/layout/Header';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -14,17 +15,13 @@ import { CircularProgress, Box } from '@mui/material';
 const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, user, loading } = useSelector(state => state.auth);
-  const navigate = useNavigate();
 
   useEffect(() => {
     dispatch(loadUserFromStorage());
-  }, [dispatch]);
-  
-  useEffect(() => {
-    if (isAuthenticated && window.location.pathname === '/register') {
-      dispatch(logoutUser());
+    if (isAuthenticated) {
+      dispatch(loadFilesFromStorage());
     }
-  }, [isAuthenticated, dispatch]);
+  }, [dispatch, isAuthenticated]);
 
   if (loading) {
     return (

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, Http404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -39,6 +40,10 @@ except ImportError:
 # Настройка логирования для отслеживания действий
 logger = logging.getLogger(__name__)
 
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 20  
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class FileViewSet(viewsets.ModelViewSet):
     """
@@ -53,6 +58,7 @@ class FileViewSet(viewsets.ModelViewSet):
     ordering_fields = ['upload_date', 'last_download', 'size']
     ordering = ['-upload_date']
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         """
@@ -181,14 +187,18 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
+            user = serializer.save()            
+            
+            Token.objects.filter(user=user).delete()
             token = Token.objects.create(user=user)
+            
             logger.info(f"New user registered: {user.username}")
             return Response({
                 'user': UserSerializer(user).data,
                 'token': token.key
             }, status=status.HTTP_201_CREATED)
-        logger.warning(f"Failed registration attempt: {serializer.errors}")
+        
+        logger.warning(f"Registration failed: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -223,21 +233,18 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        try:
-            # Обработка TokenAuthentication
+        try:            
             if hasattr(request, 'auth') and isinstance(request.auth, Token):
                 request.auth.delete()
                 logger.info(f"Token deleted for user {request.user.username}")
-
-            # Обработка JWT Authentication (если установлен)
+           
             if JWT_INSTALLED:
                 refresh_token = request.data.get("refresh_token")
                 if refresh_token:
                     token = RefreshToken(refresh_token)
                     token.blacklist()
                     logger.info(f"JWT token blacklisted for user {request.user.username}")
-
-            # Обработка SessionAuthentication
+            
             if request.user.is_authenticated:
                 logout(request)
                 logger.info(f"Session ended for user {request.user.username}")
@@ -246,8 +253,7 @@ class LogoutView(APIView):
                 {"detail": "Вы успешно вышли из системы."},
                 status=status.HTTP_200_OK
             )
-
-            # Очистка cookies
+            
             response.delete_cookie('auth_token')
             response.delete_cookie('sessionid')
             response.delete_cookie('csrftoken')

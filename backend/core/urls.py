@@ -48,9 +48,8 @@ urlpatterns = [
 
 # Обработка медиа-файлов в режиме разработки
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)    
     
-    # Подключение Debug Toolbar, если установлен
     try:
         import debug_toolbar
         urlpatterns = [

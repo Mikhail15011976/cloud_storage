@@ -3,6 +3,10 @@ import { FileItem } from './FileItem';
 import { List, Paper, Typography } from '@mui/material';
 
 export const FileList = ({ files, onDelete, onDownload, onShare, onRename, onCommentUpdate }) => {
+  if (!Array.isArray(files)) {
+    return <Typography>Загрузка файлов...</Typography>;
+  }
+
   if (files.length === 0) {
     return <Typography>Нет файлов в этой категории</Typography>;
   }

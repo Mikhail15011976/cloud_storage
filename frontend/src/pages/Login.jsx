@@ -10,11 +10,11 @@ const Login = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (credentials) => {
-  const result = await dispatch(login(credentials));
-  if (result.payload?.success) {
-    navigate('/dashboard');
-  }
-};
+    const result = await dispatch(login(credentials));
+    if (result.payload?.success) {
+      navigate('/dashboard'); 
+    }
+  };
 
   return (
     <Container maxWidth="sm">

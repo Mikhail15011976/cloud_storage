@@ -73,16 +73,36 @@ export const login = (credentials) => async (dispatch) => {
 export const register = (userData) => async (dispatch) => {
   try {
     dispatch(loginStart());
-    const response = await api.post('/auth/register/', userData);
+    const response = await api.post('/auth/register/', userData);    
+    
     const { user, token } = response.data;
     
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    
-    dispatch(loginSuccess({ user, token }));
-    return { success: true };
+    if (token && user) {
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      
+      dispatch(loginSuccess({ user, token }));
+      return { success: true };
+    } else {
+      throw new Error('Invalid response from server');
+    }
   } catch (error) {
-    const message = error.response?.data?.detail || 'Registration failed';
+    let message = 'Registration failed';
+    if (error.response && error.response.data) {      
+      const errors = error.response.data;
+      if (errors.username) {
+        message = errors.username[0];
+      } else if (errors.email) {
+        message = errors.email[0];
+      } else if (errors.detail) {
+        message = errors.detail;
+      } else {
+        message = Object.values(errors).flat().join(' ') || message;
+      }
+    } else if (error.message) {
+      message = error.message;
+    }
+    
     dispatch(loginFailure(message));
     return { success: false, error: message };
   }

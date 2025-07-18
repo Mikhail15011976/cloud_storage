@@ -1,3 +1,4 @@
+# backend/accounts/serializers.py
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
@@ -27,6 +28,13 @@ class FileSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Установка владельца файла как текущего пользователя при создании"""
         validated_data['owner'] = self.context['request'].user
+
+        # Если original_name не передан, берем из имени файла
+        if 'original_name' not in validated_data or not validated_data['original_name']:
+            file_obj = validated_data.get('file')
+            if file_obj:
+                validated_data['original_name'] = file_obj.name
+
         return super().create(validated_data)
 
     def validate_file(self, value):
@@ -93,10 +101,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
-        user.save()
-        # Создаем токен для нового пользователя (если используется TokenAuthentication)
-        Token.objects.create(user=user)
-        return user
+        user.save()        
+        Token.objects.get_or_create(user=user)
+        return user   
 
 
 class LoginSerializer(serializers.Serializer):

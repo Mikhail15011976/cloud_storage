@@ -1,130 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Container, 
   Typography, 
   Box, 
   CircularProgress, 
   Grid, 
-  List, 
-  ListItem, 
-  ListItemIcon,
-  ListItemText, 
-  Paper,
   Stack,
-  Divider
+  Pagination
 } from '@mui/material';
-import {
-  Folder as FolderIcon,
-  Image as ImageIcon,
-  Movie as MovieIcon,
-  Description as DescriptionIcon,
-  Delete as DeleteIcon,
-  Upload as UploadIcon
-} from '@mui/icons-material';
-import { FileList, UploadButton } from '../components/files';
-import { getFiles, deleteFile, renameFile, updateFileComment } from '../services/files';
+import UploadIcon from '@mui/icons-material/Upload';
+import { FileGrid, UploadButton } from '../components/files';
 import api from '../services/api';
 
 export default function Dashboard() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('uploads');
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 20,
+    totalCount: 0
+  });
 
-  useEffect(() => {
-    fetchFiles();
-  }, []);
-
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getFiles();
-      setFiles(data);
+      const response = await api.get('/files/', {
+        params: {
+          page: pagination.page,
+          page_size: pagination.pageSize
+        }
+      });
+      
+      setFiles(response.data.results || response.data);
+      setPagination(prev => ({
+        ...prev,
+        totalCount: response.data.count || response.data.length
+      }));
     } catch (error) {
-      console.error('Error fetching files:', error.message);
-      console.error('Error details:', error.response?.data || error);
+      console.error('Error fetching files:', error);
     } finally {
       setLoading(false);
     }
+  }, [pagination.page, pagination.pageSize]);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
+  const handleFileClick = (file) => {
+    window.open(`/api/files/${file.id}/download/`, '_blank');
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await deleteFile(id);
-      setFiles(files.filter(file => file.id !== id));
-    } catch (error) {
-      console.error('Error deleting file:', error.message);
-      console.error('Error details:', error.response?.data || error);
-    }
-  };
-
-  const handleDownload = (id) => {
-    const file = files.find(f => f.id === id);
-    if (file) {
-      window.open(`/api/files/${id}/download/`, '_blank');
-    }
-  };
-
-  const handleShare = async (id) => {
-    try {
-      const response = await api.post(`/files/${id}/share/`);
-      const sharedLink = `${window.location.origin}/api/public/files/${response.data.shared_link}/`;
-      alert(`Shareable link: ${sharedLink}`);
-    } catch (error) {
-      console.error('Error sharing file:', error.message);
-      console.error('Error details:', error.response?.data || error);
-    }
-  };
-
-  const handleRename = async (id, newName) => {
-    try {
-      await renameFile(id, newName);
-      setFiles(files.map(file => 
-        file.id === id ? { ...file, original_name: newName } : file
-      ));
-    } catch (error) {
-      console.error('Error renaming file:', error.message);
-      console.error('Error details:', error.response?.data || error);
-    }
-  };
-
-  const handleCommentUpdate = async (id, newComment) => {
-    try {
-      await updateFileComment(id, newComment);
-      setFiles(files.map(file => 
-        file.id === id ? { ...file, comment: newComment } : file
-      ));
-    } catch (error) {
-      console.error('Error updating comment:', error.message);
-      console.error('Error details:', error.response?.data || error);
-    }
-  };
-
-  const getFilteredFiles = () => {
-    switch (selectedCategory) {
-      case 'uploads':
-        return files;
-      case 'photos':
-        return files.filter(file => file.file_type === 'IMAGE');
-      case 'videos':
-        return files.filter(file => file.file_type === 'VIDEO');
-      case 'documents':
-        return files.filter(file => ['PDF', 'WORD', 'TEXT'].includes(file.file_type));
-      case 'trash':
-        return [];
-      default:
-        return files;
-    }
-  };
-
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case 'uploads': return <FolderIcon />;
-      case 'photos': return <ImageIcon />;
-      case 'videos': return <MovieIcon />;
-      case 'documents': return <DescriptionIcon />;
-      case 'trash': return <DeleteIcon />;
-      default: return <FolderIcon />;
-    }
+  const handlePageChange = (event, newPage) => {
+    setPagination(prev => ({
+      ...prev,
+      page: newPage
+    }));
   };
 
   if (loading) {
@@ -138,92 +69,42 @@ export default function Dashboard() {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Grid container spacing={3}>
-        {/* Левая колонка - меню и кнопка Upload */}
-        <Grid xs={12} md={3}>
-          <Stack spacing={2} alignItems="center">
+        <Grid item xs={12} md={3}>
+          <Stack spacing={2}>
             <UploadButton 
-              onSuccess={(newFile) => setFiles([...files, newFile])}
+              onSuccess={fetchFiles}
               startIcon={<UploadIcon />}
               sx={{ 
                 width: '100%',
-                maxWidth: 200,
                 py: 1.5,
                 fontWeight: 'bold'
               }}
             />
-            
-            <Paper elevation={3} sx={{ borderRadius: 2, width: '100%' }}>
-              <List>
-                {['uploads', 'photos', 'videos', 'documents', 'trash'].map((category) => (
-                  <React.Fragment key={category}>
-                    <ListItem 
-                      onClick={() => setSelectedCategory(category)}
-                      selected={selectedCategory === category}
-                      sx={{
-                        cursor: 'pointer',
-                        '&.Mui-selected': {
-                          backgroundColor: 'primary.light',
-                          '&:hover': {
-                            backgroundColor: 'primary.light',
-                          }
-                        }
-                      }}
-                    >
-                      <ListItemIcon>
-                        {getCategoryIcon(category)}
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary={
-                          category === 'uploads' ? 'All Files' :
-                          category === 'photos' ? 'Images' :
-                          category === 'videos' ? 'Videos' :
-                          category === 'documents' ? 'Documents' :
-                          'Trash'
-                        } 
-                        primaryTypographyProps={{ fontWeight: 'medium' }}
-                      />
-                    </ListItem>
-                    <Divider />
-                  </React.Fragment>
-                ))}
-              </List>
-            </Paper>
           </Stack>
         </Grid>
 
-        {/* Правая колонка - файлы */}
-        <Grid xs={12} md={9}>
-          <Box 
-            display="flex"
-            justifyContent="center"
-            mb={3}
-            sx={{
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-              pb: 2,
-              width: '100%'
-            }}
-          >
-            <Typography 
-              variant="h4" 
-              component="h1"
-              sx={{ 
-                fontWeight: 'bold',
-                color: 'text.primary'
-              }}
-            >
-              My Files
+        <Grid item xs={12} md={9}>
+          <Box mb={3}>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
+              Мои файлы
             </Typography>
           </Box>
           
-          <FileList
-            files={getFilteredFiles()}
-            onDelete={handleDelete}
-            onDownload={handleDownload}
-            onShare={handleShare}
-            onRename={handleRename}
-            onCommentUpdate={handleCommentUpdate}
+          <FileGrid 
+            files={files} 
+            onFileClick={handleFileClick}
           />
+          
+          {pagination.totalCount > pagination.pageSize && (
+            <Box mt={4} display="flex" justifyContent="center">
+              <Pagination
+                count={Math.ceil(pagination.totalCount / pagination.pageSize)}
+                page={pagination.page}
+                onChange={handlePageChange}
+                color="primary"
+              />
+            </Box>
+          )}
         </Grid>
       </Grid>
     </Container>

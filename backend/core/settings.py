@@ -2,23 +2,20 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Загрузка переменных окружения из .env файла
 load_dotenv()
 
-# Базовые пути
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Создаем необходимые директории для логов, медиа и статических файлов
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'media'), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
 
 # Безопасность
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-123')  # Секретный ключ для подписи
-DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'  # Режим отладки
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-123')  
+DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'  
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,192.168.1.127').split(',')  # Разрешенные хосты
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')  # Доверенные источники CSRF
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,192.168.1.127').split(',') 
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1,http://192.168.1.127').split(',')  
 
 # Настройки приложений
 INSTALLED_APPS = [
@@ -31,28 +28,28 @@ INSTALLED_APPS = [
     
     # Сторонние приложения
     'rest_framework',
-    'rest_framework.authtoken',  # Поддержка токенов для аутентификации
-    'corsheaders',  # Поддержка CORS
-    'drf_yasg',  # Генерация документации API
-    'django_filters',  # Фильтрация в API
+    'rest_framework.authtoken',  
+    'corsheaders',  
+    'drf_yasg',  
+    'django_filters',  
     
     # Локальные приложения
-    'accounts.apps.AccountsConfig',  # Приложение для пользователей и файлов
+    'accounts.apps.AccountsConfig',  
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',  # Безопасность
-    'django.contrib.sessions.middleware.SessionMiddleware',  # Поддержка сессий
-    'corsheaders.middleware.CorsMiddleware',  # Обработка CORS-запросов
-    'django.middleware.common.CommonMiddleware',  # Общие middleware
-    'django.middleware.csrf.CsrfViewMiddleware',  # Защита от CSRF
-    'django.contrib.auth.middleware.AuthenticationMiddleware',  # Аутентификация
-    'django.contrib.messages.middleware.MessageMiddleware',  # Сообщения
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',  # Защита от кликджекинга
+    'django.middleware.security.SecurityMiddleware', 
+    'django.contrib.sessions.middleware.SessionMiddleware', 
+    'corsheaders.middleware.CorsMiddleware', 
+    'django.middleware.common.CommonMiddleware', 
+    'django.middleware.csrf.CsrfViewMiddleware', 
+    'django.contrib.auth.middleware.AuthenticationMiddleware', 
+    'django.contrib.messages.middleware.MessageMiddleware', 
+    'django.middleware.clickjacking.XFrameOptionsMiddleware', 
 ]
 
-ROOT_URLCONF = 'core.urls'  # Основной файл URL-роутинга
-WSGI_APPLICATION = 'core.wsgi.application'  # WSGI-приложение
+ROOT_URLCONF = 'core.urls' 
+WSGI_APPLICATION = 'core.wsgi.application' 
 
 # Настройки шаблонов
 TEMPLATES = [
@@ -74,34 +71,34 @@ TEMPLATES = [
 # Настройки базы данных
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),  # Движок БД
-        'NAME': os.getenv('DB_NAME', os.path.join(BASE_DIR, 'db.sqlite3')),  # Имя/путь к БД
-        'USER': os.getenv('DB_USER', ''),  # Пользователь БД
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),  # Пароль БД
-        'HOST': os.getenv('DB_HOST', ''),  # Хост БД
-        'PORT': os.getenv('DB_PORT', ''),  # Порт БД
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),  
+        'NAME': os.getenv('DB_NAME', os.path.join(BASE_DIR, 'db.sqlite3')), 
+        'USER': os.getenv('DB_USER', ''),  
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),  
+        'HOST': os.getenv('DB_HOST', ''), 
+        'PORT': os.getenv('DB_PORT', ''), 
     }
 }
 
 # Валидация паролей
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',  # Проверка схожести с данными пользователя
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',  
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',  # Минимальная длина пароля
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',  
         'OPTIONS': {
             'min_length': 8,
         }
     },
     {
-        'NAME': 'accounts.validators.PasswordValidator',  # Кастомный валидатор пароля
+        'NAME': 'accounts.validators.PasswordValidator',  
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',  # Проверка на распространенные пароли
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',  
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',  # Проверка на полностью числовой пароль
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator', 
     },
 ]
 
@@ -111,74 +108,75 @@ AUTH_USER_MODEL = 'accounts.User'
 # Настройки REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',  # Аутентификация через сессии
-        'rest_framework.authentication.TokenAuthentication',  # Аутентификация через токены
+        'rest_framework.authentication.SessionAuthentication', 
+        'rest_framework.authentication.TokenAuthentication', 
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',  # Доступ только для аутентифицированных (чтение для всех)
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly', 
     ],
     'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',  # Ограничение для анонимных пользователей
-        'rest_framework.throttling.UserRateThrottle',  # Ограничение для аутентифицированных пользователей
+        'rest_framework.throttling.AnonRateThrottle', 
+        'rest_framework.throttling.UserRateThrottle', 
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',  # Лимит запросов для анонимов
-        'user': '1000/day',  # Лимит запросов для пользователей
+        'anon': '100/day', 
+        'user': '1000/day', 
     },
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',  # Пагинация
-    'PAGE_SIZE': 20,  # Размер страницы для пагинации
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination', 
+    'PAGE_SIZE': 20, 
     'DEFAULT_FILTER_BACKENDS': [
-        'django_filters.rest_framework.DjangoFilterBackend',  # Фильтрация
-        'rest_framework.filters.SearchFilter',  # Поиск
-        'rest_framework.filters.OrderingFilter',  # Сортировка
+        'django_filters.rest_framework.DjangoFilterBackend', 
+        'rest_framework.filters.SearchFilter', 
+        'rest_framework.filters.OrderingFilter', 
     ],
 }
 
-# Проверка и добавление JWT, если установлен
+# Проверка и добавление JWT
 try:
     import rest_framework_simplejwt
-    INSTALLED_APPS.append('rest_framework_simplejwt')  # Добавляем JWT в установленные приложения
+    INSTALLED_APPS.append('rest_framework_simplejwt') 
     REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'].append(
-        'rest_framework_simplejwt.authentication.JWTAuthentication'  # Добавляем JWT-аутентификацию
+        'rest_framework_simplejwt.authentication.JWTAuthentication' 
     )
     # Настройки JWT
     from datetime import timedelta
     SIMPLE_JWT = {
-        'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),  # Время жизни access-токена
-        'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # Время жизни refresh-токена
-        'ROTATE_REFRESH_TOKENS': True,  # Обновление refresh-токена при использовании
-        'BLACKLIST_AFTER_ROTATION': True,  # Блокировка старых refresh-токенов
+        'ACCESS_TOKEN_LIFETIME': timedelta(hours=1), 
+        'REFRESH_TOKEN_LIFETIME': timedelta(days=7), 
+        'ROTATE_REFRESH_TOKENS': True, 
+        'BLACKLIST_AFTER_ROTATION': True, 
     }
 except ImportError:
-    pass  # Если JWT не установлен, пропускаем
+    pass 
 
 # Настройки CORS
-CORS_ALLOWED_ORIGINS = os.getenv(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000,http://192.168.1.127:3000'
-).split(',')  # Разрешенные источники для CORS
-CORS_ALLOW_CREDENTIALS = True  # Разрешить передачу куки через CORS
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",    
+    "http://127.0.0.1:3000",
+    "http://192.168.1.127:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
 
 # Международные настройки
-LANGUAGE_CODE = 'en-us'  # Язык по умолчанию
-TIME_ZONE = 'UTC'  # Часовой пояс
-USE_I18N = True  # Поддержка интернационализации
-USE_L10N = True  # Поддержка локализации
-USE_TZ = True  # Использование временных зон
+LANGUAGE_CODE = 'en-us' 
+TIME_ZONE = 'UTC'  
+USE_I18N = True  
+USE_L10N = True  
+USE_TZ = True  
 
 # Статические файлы
-STATIC_URL = '/static/'  # URL для статических файлов
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Путь для сборки статических файлов
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]  # Дополнительные директории для статики
+STATIC_URL = '/static/'  
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')] 
 
 # Медиа файлы
-MEDIA_URL = '/media/'  # URL для медиа-файлов
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Путь для хранения медиа-файлов
-MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 50 * 1024 * 1024))  # Максимальный размер загружаемого файла (50MB по умолчанию)
-FILE_UPLOAD_PERMISSIONS = 0o644  # Права доступа к загружаемым файлам
+MEDIA_URL = '/media/' 
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  
+MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 50 * 1024 * 1024)) 
+FILE_UPLOAD_PERMISSIONS = 0o644  
 
 # Настройки по умолчанию
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'  # Тип автоинкрементного поля
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField' 
 
 # Логирование
 LOGGING = {
@@ -202,8 +200,8 @@ LOGGING = {
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs/django.log'),
-            'maxBytes': 1024 * 1024 * 5,  # 5 MB - максимальный размер файла логов
-            'backupCount': 5,  # Количество резервных копий логов
+            'maxBytes': 1024 * 1024 * 5, 
+            'backupCount': 5, 
             'formatter': 'verbose',
             'encoding': 'utf-8',
         },
@@ -220,19 +218,19 @@ LOGGING = {
         },
         'accounts': {
             'handlers': ['console', 'file'],
-            'level': 'DEBUG',  # Детализированное логирование для приложения accounts
+            'level': 'DEBUG',  
         },
     },
 }
 
 # Настройки для production (при выключенном DEBUG)
 if not DEBUG:
-    SECURE_HSTS_SECONDS = 31536000  # 1 год для HSTS
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # Включить HSTS для поддоменов
-    SECURE_SSL_REDIRECT = True  # Перенаправление на HTTPS
-    SESSION_COOKIE_SECURE = True  # Куки только через HTTPS
-    CSRF_COOKIE_SECURE = True  # CSRF-куки только через HTTPS
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Поддержка прокси для HTTPS
-    SECURE_BROWSER_XSS_FILTER = True  # Защита от XSS
-    SECURE_CONTENT_TYPE_NOSNIFF = True  # Защита от MIME-типов
-    X_FRAME_OPTIONS = 'DENY'  # Запрет встраивания в iframe
+    SECURE_HSTS_SECONDS = 31536000  
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True  
+    SECURE_SSL_REDIRECT = True  
+    SESSION_COOKIE_SECURE = True 
+    CSRF_COOKIE_SECURE = True  
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  
+    SECURE_BROWSER_XSS_FILTER = True 
+    SECURE_CONTENT_TYPE_NOSNIFF = True  
+    X_FRAME_OPTIONS = 'DENY'  

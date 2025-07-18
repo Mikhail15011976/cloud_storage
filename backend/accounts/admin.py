@@ -104,13 +104,13 @@ class CustomUserAdmin(UserAdmin):
         Возвращает список прав пользователя для отображения в админ-панели.
         Включает как прямые права, так и права, унаследованные от групп.
         """
-        # Получаем прямые права пользователя
+        
         direct_permissions = [perm.codename for perm in obj.user_permissions.all()]
-        # Получаем права из групп
+        
         group_permissions = []
         for group in obj.groups.all():
             group_permissions.extend([perm.codename for perm in group.permissions.all()])
-        # Объединяем и удаляем дубликаты
+        
         all_permissions = list(set(direct_permissions + group_permissions))
         return ", ".join(all_permissions) if all_permissions else "No permissions"
     get_user_permissions_display.short_description = 'User Permissions'
@@ -178,14 +178,11 @@ class FileAdmin(admin.ModelAdmin):
     search_fields = ('original_name', 'comment')
     readonly_fields = ('upload_date', 'size', 'file_type')
 
-    def has_delete_permission(self, request, obj=None):
-        # Можно настроить права на удаление файлов, если нужно
+    def has_delete_permission(self, request, obj=None):        
         return super().has_delete_permission(request, obj)
 
 
-# Отмена регистрации стандартной GroupAdmin
+
 admin.site.unregister(Group)
-# Регистрация кастомной GroupAdmin
 admin.site.register(Group, GroupAdmin)
-# Регистрация кастомной UserAdmin
 admin.site.register(User, CustomUserAdmin)

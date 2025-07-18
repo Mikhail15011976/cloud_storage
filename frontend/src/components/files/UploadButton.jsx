@@ -19,6 +19,7 @@ export const UploadButton = ({ onSuccess }) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('original_name', file.name); 
 
       const response = await uploadFile(formData, (progressEvent) => {
         const percentCompleted = Math.round(
@@ -27,9 +28,9 @@ export const UploadButton = ({ onSuccess }) => {
         setProgress(percentCompleted);
       });
 
-      dispatch(addFile(response.data));
+      dispatch(addFile(response));
       if (onSuccess) {
-        onSuccess(response.data);
+        onSuccess(response);
       }
     } catch (error) {
       console.error('Upload failed:', error);
