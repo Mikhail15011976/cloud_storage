@@ -1,8 +1,8 @@
-# backend/accounts/serializers.py
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
+from django.db.models import Count
 from .models import File, User
 from .validators import PasswordValidator
 
@@ -54,17 +54,50 @@ class FileSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Сериализатор для модели User"""
+    """Сериализатор для модели User с количеством файлов"""
+    files_count = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = (
             'id', 'username', 'email', 'full_name', 'is_admin', 'is_active',
-            'storage_directory', 'storage_quota', 'storage_used', 'date_joined'
+            'storage_directory', 'storage_quota', 'storage_used', 'date_joined', 'files_count'
         )
         read_only_fields = (
-            'id', 'is_admin', 'is_active', 'storage_directory',
-            'storage_quota', 'storage_used', 'date_joined'
+            'id', 'is_active', 'storage_directory',
+            'storage_quota', 'storage_used', 'date_joined', 'files_count'
         )
+        # Поле 'is_admin' исключено из read_only_fields, чтобы разрешить его обновление через API
+
+    def get_files_count(self, obj):
+        """Получение количества файлов пользователя"""
+        return obj.files.count()
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Сериализатор для обновления данных пользователя"""
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'full_name', 'is_admin')
+        read_only_fields = ('id', 'username')
+        # Поле 'is_admin' доступно для обновления, чтобы администратор мог изменять статус
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Сериализатор для отображения профиля пользователя с количеством файлов"""
+    files_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            'id', 'username', 'email', 'full_name', 'is_admin', 'is_active',
+            'storage_quota', 'storage_used', 'date_joined', 'files_count'
+        )
+        read_only_fields = fields  # Все поля только для чтения
+
+    def get_files_count(self, obj):
+        """Получение количества файлов пользователя"""
+        return obj.files.count()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -75,14 +108,26 @@ class RegisterSerializer(serializers.ModelSerializer):
         style={'input_type': 'password'},
         validators=[PasswordValidator()]
     )
+    confirm_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
+    )
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'full_name', 'password')
+        fields = ('id', 'username', 'email', 'full_name', 'password', 'confirm_password')
+        read_only_fields = ('id',)
         extra_kwargs = {
             'email': {'required': True},
             'full_name': {'required': False},
         }
+
+    def validate(self, data):
+        """Проверка, что пароли совпадают"""
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": _("Пароли не совпадают.")})
+        return data
 
     def validate_email(self, value):
         """Проверка уникальности email"""
@@ -98,12 +143,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Создание нового пользователя"""
+        validated_data.pop('confirm_password')
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
-        user.save()        
+        user.save()
+        # Создаем токен для нового пользователя, если он еще не существует
         Token.objects.get_or_create(user=user)
-        return user   
+        return user
 
 
 class LoginSerializer(serializers.Serializer):

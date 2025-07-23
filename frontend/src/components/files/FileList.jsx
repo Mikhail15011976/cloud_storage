@@ -8,7 +8,7 @@ export const FileList = ({ files, onDelete, onDownload, onShare, onRename, onCom
   }
 
   if (files.length === 0) {
-    return <Typography>Нет файлов в этой категории</Typography>;
+    return <Typography>Нет файлов для отображения</Typography>;
   }
 
   return (

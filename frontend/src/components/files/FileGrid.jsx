@@ -1,5 +1,5 @@
 import React from 'react';
-import { Grid, Paper, Typography, } from '@mui/material';
+import { Grid, Paper, Typography } from '@mui/material';
 import { InsertDriveFile, Image, PictureAsPdf, Description } from '@mui/icons-material';
 
 const getFileIcon = (fileType) => {
@@ -15,7 +15,7 @@ const getFileIcon = (fileType) => {
   }
 };
 
-export const FileGrid = ({ files, onFileClick }) => {
+export const FileGrid = ({ files, onFileClick, onDownload, onDelete, onShare, onRename, onCommentUpdate }) => {
   return (
     <Grid container spacing={3} sx={{ padding: 2 }}>
       {files.map((file) => (

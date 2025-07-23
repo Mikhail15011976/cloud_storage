@@ -19,10 +19,12 @@ export const FileItem = ({ file, onDelete, onDownload, onShare, onRename, onComm
   
   const handleRename = (id, newName) => {
     onRename(id, newName);
+    setRenameOpen(false);
   };
   
   const handleCommentUpdate = (id, newComment) => {
     onCommentUpdate(id, newComment);
+    setCommentOpen(false);
   };
 
   return (
@@ -39,19 +41,19 @@ export const FileItem = ({ file, onDelete, onDownload, onShare, onRename, onComm
               onClose={handleMenuClose}
             >
               <MenuItem onClick={() => { setRenameOpen(true); handleMenuClose(); }}>
-                <Edit sx={{ mr: 1 }} /> Rename
+                <Edit sx={{ mr: 1 }} /> Переименовать
               </MenuItem>
               <MenuItem onClick={() => { setCommentOpen(true); handleMenuClose(); }}>
-                <Comment sx={{ mr: 1 }} /> Edit Comment
+                <Comment sx={{ mr: 1 }} /> Комментарий
               </MenuItem>
               <MenuItem onClick={() => { onShare(file.id); handleMenuClose(); }}>
-                <Share sx={{ mr: 1 }} /> Share
+                <Share sx={{ mr: 1 }} /> Поделиться
               </MenuItem>
               <MenuItem onClick={() => { onDownload(file.id); handleMenuClose(); }}>
-                <Download sx={{ mr: 1 }} /> Download
+                <Download sx={{ mr: 1 }} /> Скачать
               </MenuItem>
               <MenuItem onClick={() => { onDelete(file.id); handleMenuClose(); }}>
-                <Delete sx={{ mr: 1 }} /> Delete
+                <Delete sx={{ mr: 1 }} /> Удалить
               </MenuItem>
             </Menu>
           </>
@@ -61,9 +63,10 @@ export const FileItem = ({ file, onDelete, onDownload, onShare, onRename, onComm
           primary={file.original_name}
           secondary={
             <>
-              <div>{file.size} bytes</div>
-              <div>Uploaded: {new Date(file.upload_date).toLocaleString()}</div>
-              {file.comment && <div>Comment: {file.comment}</div>}
+              <span>Размер: {file.human_readable_size}</span>
+              <br />
+              <span>Загружен: {new Date(file.upload_date).toLocaleString()}</span>
+              {file.comment && <><br /><span>Комментарий: {file.comment}</span></>}
             </>
           }
         />

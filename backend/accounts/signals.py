@@ -65,15 +65,18 @@ def sync_user_permissions(user):
     """
     Синхронизирует права пользователя с правами всех групп, в которых он состоит.
     """
-    try:        
-        groups = user.groups.all()        
+    try:
+        # Получаем все группы пользователя
+        groups = user.groups.all()
+        # Собираем все права из групп
         permissions = set()
         for group in groups:
-            permissions.update(group.permissions.all())        
+            permissions.update(group.permissions.all())
         
+        # Назначаем права пользователю
         user.user_permissions.set(permissions)
         user.save()
         logger.debug(f"Permissions synced for user {user.username}: {permissions}")
     except Exception as e:
         logger.error(f"Error syncing permissions for user {user.username}: {str(e)}")
-        raise  
+        raise  # Перебрасываем исключение для дальнейшей обработки, если нужно

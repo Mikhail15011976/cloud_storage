@@ -2,7 +2,12 @@ import api from './api';
 
 export const getFiles = async () => {
   try {
-    const response = await api.get('/files/');    
+    const response = await api.get('/files/');
+    // Если API возвращает объект с пагинацией, например { results: [...] }, 
+    // то нужно вернуть response.data.results
+    // return response.data.results;
+
+    // Если возвращается просто массив файлов — возвращаем response.data
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении файлов:', error);

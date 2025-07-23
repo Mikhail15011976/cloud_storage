@@ -11,5 +11,11 @@ export const updateUser = async (userId, userData) => {
 };
 
 export const deleteUser = async (userId) => {
-  await api.delete(`/users/${userId}/`);
+  const response = await api.delete(`/users/${userId}/`);
+  return response.data;
+};
+
+export const getUserFiles = async (userId) => {
+  const response = await api.get(`/files/?owner=${userId}`);
+  return response.data;
 };

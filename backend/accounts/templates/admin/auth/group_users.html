@@ -174,14 +174,16 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {    
+document.addEventListener('DOMContentLoaded', function() {
+    // Select all checkbox
     document.getElementById('select-all').addEventListener('change', function(e) {
         const checkboxes = document.querySelectorAll('input[name="user_ids"]');
         checkboxes.forEach(checkbox => {
             checkbox.checked = e.target.checked;
         });
-    });    
+    });
     
+    // Disable execute button when no action selected
     const actionSelect = document.querySelector('.action-select');
     const executeButton = document.querySelector('button[type="submit"]');
     

@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -13,6 +13,7 @@ from django.contrib.auth import logout
 from django.core.exceptions import ValidationError
 import uuid
 import os
+import mimetypes
 from django.conf import settings
 import logging
 
@@ -41,7 +42,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 20  
+    page_size = 20  # Количество файлов на странице
     page_size_query_param = 'page_size'
     max_page_size = 100
 
@@ -112,6 +113,7 @@ class FileViewSet(viewsets.ModelViewSet):
     def download(self, request, pk=None):
         """
         Скачивание файла с обновлением даты последнего скачивания.
+        Устанавливает правильный MIME-тип и заголовок Content-Disposition для сохранения оригинального имени файла.
         """
         file = self.get_object()
         file.last_download = timezone.now()
@@ -119,12 +121,33 @@ class FileViewSet(viewsets.ModelViewSet):
         logger.info(f"User {request.user.username} downloaded file {file.original_name} (ID: {file.id})")
 
         try:
-            response = FileResponse(open(file.file.path, 'rb'))
-            response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
-            return response
+            file_path = file.file.path
+            if not os.path.exists(file_path):
+                logger.error(f"File {file_path} not found on server for download")
+                raise Http404("Файл не найден на сервере.")
+
+            # Определение MIME-типа файла
+            mime_type, _ = mimetypes.guess_type(file_path)
+            if not mime_type:
+                mime_type = 'application/octet-stream'
+            logger.info(f"Downloading file {file.original_name} with MIME type: {mime_type}")
+
+            # Чтение файла и создание ответа
+            with open(file_path, 'rb') as fh:
+                response = HttpResponse(fh.read(), content_type=mime_type)
+                # Установка заголовка Content-Disposition с оригинальным именем файла
+                response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
+                # Предотвращение интерпретации файла браузером
+                response['X-Content-Type-Options'] = 'nosniff'
+                # Указание длины контента
+                response['Content-Length'] = os.path.getsize(file_path)
+                return response
         except FileNotFoundError:
             logger.error(f"File {file.file.path} not found on server for download")
             raise Http404("Файл не найден на сервере.")
+        except Exception as e:
+            logger.error(f"Error downloading file {file.original_name}: {str(e)}")
+            raise Http404(f"Ошибка при скачивании файла: {str(e)}")
 
     @action(detail=True, methods=['post', 'delete'])
     def share(self, request, pk=None):
@@ -149,6 +172,21 @@ class FileViewSet(viewsets.ModelViewSet):
             logger.info(f"User {request.user.username} revoked sharing for file {file.original_name}")
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['patch'], url_path='rename')
+    def rename(self, request, pk=None):
+        """
+        Переименование файла. Обновляет поле original_name в базе данных.
+        """
+        file = self.get_object()
+        new_name = request.data.get('new_name')
+        if not new_name:
+            return Response({'detail': 'New name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        file.original_name = new_name
+        file.save()
+        logger.info(f"User {request.user.username} renamed file {file.id} to {new_name}")
+        return Response({'id': file.id, 'original_name': new_name}, status=status.HTTP_200_OK)
+
 
 class PublicFileDownloadView(APIView):
     """
@@ -169,12 +207,30 @@ class PublicFileDownloadView(APIView):
         logger.info(f"Public download of file {file.original_name} via link {shared_link}")
 
         try:
-            response = FileResponse(open(file.file.path, 'rb'))
-            response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
-            return response
+            file_path = file.file.path
+            if not os.path.exists(file_path):
+                logger.error(f"Public file {file_path} not found on server")
+                raise Http404("Файл не найден на сервере.")
+
+            # Определение MIME-типа файла
+            mime_type, _ = mimetypes.guess_type(file_path)
+            if not mime_type:
+                mime_type = 'application/octet-stream'
+            logger.info(f"Public downloading file {file.original_name} with MIME type: {mime_type}")
+
+            # Чтение файла и создание ответа
+            with open(file_path, 'rb') as fh:
+                response = HttpResponse(fh.read(), content_type=mime_type)
+                response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
+                response['X-Content-Type-Options'] = 'nosniff'
+                response['Content-Length'] = os.path.getsize(file_path)
+                return response
         except FileNotFoundError:
             logger.error(f"Public file {file.file.path} not found on server")
             raise Http404("Файл не найден на сервере.")
+        except Exception as e:
+            logger.error(f"Error downloading public file {file.original_name}: {str(e)}")
+            raise Http404(f"Ошибка при скачивании файла: {str(e)}")
 
 
 class RegisterView(APIView):
@@ -187,8 +243,9 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()            
+            user = serializer.save()
             
+            # Удаляем старый токен, если существует
             Token.objects.filter(user=user).delete()
             token = Token.objects.create(user=user)
             
@@ -233,18 +290,21 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        try:            
+        try:
+            # Обработка TokenAuthentication
             if hasattr(request, 'auth') and isinstance(request.auth, Token):
                 request.auth.delete()
                 logger.info(f"Token deleted for user {request.user.username}")
-           
+
+            # Обработка JWT Authentication (если установлен)
             if JWT_INSTALLED:
                 refresh_token = request.data.get("refresh_token")
                 if refresh_token:
                     token = RefreshToken(refresh_token)
                     token.blacklist()
                     logger.info(f"JWT token blacklisted for user {request.user.username}")
-            
+
+            # Обработка SessionAuthentication
             if request.user.is_authenticated:
                 logout(request)
                 logger.info(f"Session ended for user {request.user.username}")
@@ -253,7 +313,8 @@ class LogoutView(APIView):
                 {"detail": "Вы успешно вышли из системы."},
                 status=status.HTTP_200_OK
             )
-            
+
+            # Очистка cookies
             response.delete_cookie('auth_token')
             response.delete_cookie('sessionid')
             response.delete_cookie('csrftoken')
