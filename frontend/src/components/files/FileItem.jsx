@@ -26,6 +26,27 @@ export const FileItem = ({ file, onDelete, onDownload, onShare, onRename, onComm
     onCommentUpdate(id, newComment);
     setCommentOpen(false);
   };
+  
+  const handleGetShareLink = () => {
+    onShare(file.id);
+    handleMenuClose();
+  };
+  
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+  };
+  
+  const getFileTypeLabel = (fileType) => {
+    const fileTypeLabels = {
+      'PDF': 'PDF Документ',
+      'WORD': 'Word Документ',
+      'IMAGE': 'Изображение',
+      'TEXT': 'Текстовый файл',
+      'OTHER': 'Другое'
+    };
+    return fileTypeLabels[fileType] || 'Неизвестный тип';
+  };
 
   return (
     <>
@@ -46,8 +67,8 @@ export const FileItem = ({ file, onDelete, onDownload, onShare, onRename, onComm
               <MenuItem onClick={() => { setCommentOpen(true); handleMenuClose(); }}>
                 <Comment sx={{ mr: 1 }} /> Комментарий
               </MenuItem>
-              <MenuItem onClick={() => { onShare(file.id); handleMenuClose(); }}>
-                <Share sx={{ mr: 1 }} /> Поделиться
+              <MenuItem onClick={handleGetShareLink}>
+                <Share sx={{ mr: 1 }} /> Получить ссылку
               </MenuItem>
               <MenuItem onClick={() => { onDownload(file.id); handleMenuClose(); }}>
                 <Download sx={{ mr: 1 }} /> Скачать
@@ -63,10 +84,19 @@ export const FileItem = ({ file, onDelete, onDownload, onShare, onRename, onComm
           primary={file.original_name}
           secondary={
             <>
+              <span>Тип: {getFileTypeLabel(file.file_type)}</span>
+              <br />
               <span>Размер: {file.human_readable_size}</span>
               <br />
-              <span>Загружен: {new Date(file.upload_date).toLocaleString()}</span>
-              {file.comment && <><br /><span>Комментарий: {file.comment}</span></>}
+              <span>Загружен: {formatDate(file.upload_date)}</span>
+              <br />
+              <span>Последнее скачивание: {formatDate(file.last_download)}</span>
+              {file.comment && (
+                <>
+                  <br />
+                  <span>Комментарий: {file.comment}</span>
+                </>
+              )}
             </>
           }
         />

@@ -32,8 +32,7 @@ export default function Admin() {
   });
   const [userLoading, setUserLoading] = useState({});
   const navigate = useNavigate();
-
-  // Загрузка списка пользователей при монтировании компонента
+  
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -41,8 +40,7 @@ export default function Admin() {
         setError(null);
         const data = await getUsers();
         const usersData = data.results || data;
-
-        // Для каждого пользователя запрашиваем количество файлов
+        
         const updatedUsers = await Promise.all(
           usersData.map(async (user) => {
             try {

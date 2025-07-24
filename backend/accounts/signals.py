@@ -18,31 +18,27 @@ def create_user_storage_and_token(sender, instance, created, **kwargs):
     и создает токен для нового пользователя.
     """
     if created:
-        try:
-            # Создание физической директории для файлов пользователя
+        try:            
             user_storage_path = os.path.join(settings.MEDIA_ROOT, instance.storage_directory)
             os.makedirs(user_storage_path, exist_ok=True)
             logger.info(f"Storage directory created for user {instance.username} at {user_storage_path}")
         except Exception as e:
             logger.error(f"Failed to create storage directory for user {instance.username}: {str(e)}")
 
-        try:
-            # Добавление пользователя в группу "Пользователи"
+        try:            
             group, created = Group.objects.get_or_create(name='Пользователи')
             instance.groups.add(group)
             logger.info(f"User {instance.username} added to group 'Пользователи'")
         except Exception as e:
             logger.error(f"Failed to add user {instance.username} to group 'Пользователи': {str(e)}")
 
-        try:
-            # Создание токена для нового пользователя
+        try:            
             token, created = Token.objects.get_or_create(user=instance)
             logger.info(f"Token {'created' if created else 'already exists'} for user {instance.username}")
         except Exception as e:
             logger.error(f"Failed to create token for user {instance.username}: {str(e)}")
 
-        try:
-            # Синхронизация прав пользователя с правами группы
+        try:            
             sync_user_permissions(instance)
             logger.info(f"Permissions synced for user {instance.username} during creation")
         except Exception as e:
@@ -65,18 +61,15 @@ def sync_user_permissions(user):
     """
     Синхронизирует права пользователя с правами всех групп, в которых он состоит.
     """
-    try:
-        # Получаем все группы пользователя
-        groups = user.groups.all()
-        # Собираем все права из групп
+    try:        
+        groups = user.groups.all()        
         permissions = set()
         for group in groups:
-            permissions.update(group.permissions.all())
+            permissions.update(group.permissions.all())        
         
-        # Назначаем права пользователю
         user.user_permissions.set(permissions)
         user.save()
         logger.debug(f"Permissions synced for user {user.username}: {permissions}")
     except Exception as e:
         logger.error(f"Error syncing permissions for user {user.username}: {str(e)}")
-        raise  # Перебрасываем исключение для дальнейшей обработки, если нужно
+        raise  

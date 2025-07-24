@@ -28,8 +28,7 @@ class FileSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Установка владельца файла как текущего пользователя при создании"""
         validated_data['owner'] = self.context['request'].user
-
-        # Если original_name не передан, берем из имени файла
+        
         if 'original_name' not in validated_data or not validated_data['original_name']:
             file_obj = validated_data.get('file')
             if file_obj:
@@ -42,8 +41,7 @@ class FileSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         if not user.is_authenticated:
             raise serializers.ValidationError(_("Вы должны быть авторизованы для загрузки файлов."))
-
-        # Проверка квоты хранилища
+        
         if hasattr(value, 'size') and not user.can_upload_file(value.size):
             raise serializers.ValidationError(
                 _("Файл превышает квоту хранилища. Доступно: %(available)s байт") % {
@@ -66,8 +64,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'id', 'is_active', 'storage_directory',
             'storage_quota', 'storage_used', 'date_joined', 'files_count'
-        )
-        # Поле 'is_admin' исключено из read_only_fields, чтобы разрешить его обновление через API
+        )        
 
     def get_files_count(self, obj):
         """Получение количества файлов пользователя"""
@@ -79,8 +76,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'full_name', 'is_admin')
-        read_only_fields = ('id', 'username')
-        # Поле 'is_admin' доступно для обновления, чтобы администратор мог изменять статус
+        read_only_fields = ('id', 'username')   
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -93,7 +89,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'full_name', 'is_admin', 'is_active',
             'storage_quota', 'storage_used', 'date_joined', 'files_count'
         )
-        read_only_fields = fields  # Все поля только для чтения
+        read_only_fields = fields  
 
     def get_files_count(self, obj):
         """Получение количества файлов пользователя"""
@@ -147,8 +143,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
-        user.save()
-        # Создаем токен для нового пользователя, если он еще не существует
+        user.save()        
         Token.objects.get_or_create(user=user)
         return user
 

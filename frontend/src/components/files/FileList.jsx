@@ -2,7 +2,7 @@ import React from 'react';
 import { FileItem } from './FileItem';
 import { List, Paper, Typography } from '@mui/material';
 
-export const FileList = ({ files, onDelete, onDownload, onShare, onRename, onCommentUpdate }) => {
+export const FileList = ({ files, onDelete, onDownload, onShare, onRename, onCommentUpdate, onView }) => {
   if (!Array.isArray(files)) {
     return <Typography>Загрузка файлов...</Typography>;
   }
@@ -23,6 +23,7 @@ export const FileList = ({ files, onDelete, onDownload, onShare, onRename, onCom
             onShare={onShare}
             onRename={onRename}
             onCommentUpdate={onCommentUpdate}
+            onView={onView}
           />
         ))}
       </List>

@@ -18,15 +18,13 @@ const LoginForm = ({ onSubmit, loading }) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
-    });
-    // Сбрасываем ошибку при изменении полей
+    });    
     if (error) setError(null);
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    e.preventDefault();    
     
-    // Базовая валидация
     if (!formData.username.trim() || !formData.password.trim()) {
       setError('Please fill in all fields');
       return;

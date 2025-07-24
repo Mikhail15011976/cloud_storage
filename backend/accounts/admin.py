@@ -103,14 +103,11 @@ class CustomUserAdmin(UserAdmin):
         """
         Возвращает список прав пользователя для отображения в админ-панели.
         Включает как прямые права, так и права, унаследованные от групп.
-        """
-        # Получаем прямые права пользователя
-        direct_permissions = [perm.codename for perm in obj.user_permissions.all()]
-        # Получаем права из групп
+        """        
+        direct_permissions = [perm.codename for perm in obj.user_permissions.all()]        
         group_permissions = []
         for group in obj.groups.all():
-            group_permissions.extend([perm.codename for perm in group.permissions.all()])
-        # Объединяем и удаляем дубликаты
+            group_permissions.extend([perm.codename for perm in group.permissions.all()])        
         all_permissions = list(set(direct_permissions + group_permissions))
         return ", ".join(all_permissions) if all_permissions else "No permissions"
     get_user_permissions_display.short_description = 'User Permissions'

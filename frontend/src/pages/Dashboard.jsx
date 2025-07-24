@@ -7,20 +7,15 @@ import {
   Grid, 
   Stack,
   Pagination,
-  ToggleButtonGroup,
-  ToggleButton
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import ViewListIcon from '@mui/icons-material/ViewList';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import UploadIcon from '@mui/icons-material/Upload';
-import { FileGrid, FileList, UploadButton, RenameDialog } from '../components/files';
+import { FileList, UploadButton, RenameDialog } from '../components/files';
 import api from '../services/api';
 
 function Dashboard() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('grid');
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 20,
@@ -59,21 +54,11 @@ function Dashboard() {
     fetchFiles();
   }, [fetchFiles]);
 
-  const handleFileClick = (file) => {
-    handleDownload(file.id);
-  };
-
   const handlePageChange = (event, newPage) => {
     setPagination(prev => ({
       ...prev,
       page: newPage
     }));
-  };
-
-  const handleViewModeChange = (event, newMode) => {
-    if (newMode !== null) {
-      setViewMode(newMode);
-    }
   };
 
   const handleDelete = async (id) => {
@@ -125,6 +110,10 @@ function Dashboard() {
       link.click(); 
       document.body.removeChild(link); 
       window.URL.revokeObjectURL(url); 
+      
+      setFiles(files.map(file => 
+        file.id === id ? { ...file, last_download: new Date().toISOString() } : file
+      ));
 
       enqueueSnackbar(`Файл "${fileName}" успешно скачан`, { variant: 'success' });
     } catch (error) {
@@ -137,8 +126,13 @@ function Dashboard() {
     try {
       const response = await api.post(`/files/${id}/share/`);
       const sharedLink = response.data.shared_link;
-      enqueueSnackbar('Ссылка для общего доступа создана', { variant: 'success' });
-      alert(`Share link: ${window.location.origin}/public/files/${sharedLink}`);
+      const fullLink = `${window.location.origin}/public/files/${sharedLink}`;      
+      
+      navigator.clipboard.writeText(fullLink).then(() => {
+        enqueueSnackbar('Ссылка для общего доступа скопирована в буфер обмена', { variant: 'success' });
+      }, () => {
+        enqueueSnackbar('Не удалось скопировать ссылку в буфер обмена', { variant: 'error' });
+      });
     } catch (error) {
       console.error('Error sharing file:', error);
       enqueueSnackbar('Ошибка при создании ссылки для общего доступа', { variant: 'error' });
@@ -180,6 +174,17 @@ function Dashboard() {
     }
   };
 
+  const handleView = (id) => {
+    try {      
+      const viewUrl = `${api.defaults.baseURL}/files/${id}/download/`;      
+      window.open(viewUrl, '_blank');
+      enqueueSnackbar('Файл открыт для просмотра', { variant: 'success' });
+    } catch (error) {
+      console.error('Error viewing file:', error);
+      enqueueSnackbar('Ошибка при открытии файла для просмотра', { variant: 'error' });
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" mt={4}>
@@ -210,41 +215,17 @@ function Dashboard() {
             <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
               Мои файлы
             </Typography>
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={handleViewModeChange}
-              aria-label="view mode"
-            >
-              <ToggleButton value="grid" aria-label="grid view">
-                <ViewModuleIcon />
-              </ToggleButton>
-              <ToggleButton value="list" aria-label="list view">
-                <ViewListIcon />
-              </ToggleButton>
-            </ToggleButtonGroup>
           </Box>
           
-          {viewMode === 'grid' ? (
-            <FileGrid 
-              files={files} 
-              onFileClick={handleFileClick}
-              onDelete={handleDelete}
-              onDownload={handleDownload}
-              onShare={handleShare}
-              onRename={handleRename}
-              onCommentUpdate={handleCommentUpdate}
-            />
-          ) : (
-            <FileList 
-              files={files}
-              onDelete={handleDelete}
-              onDownload={handleDownload}
-              onShare={handleShare}
-              onRename={handleRename}
-              onCommentUpdate={handleCommentUpdate}
-            />
-          )}
+          <FileList 
+            files={files}
+            onDelete={handleDelete}
+            onDownload={handleDownload}
+            onShare={handleShare}
+            onRename={handleRename}
+            onCommentUpdate={handleCommentUpdate}
+            onView={handleView}
+          />
           
           {pagination.totalCount > pagination.pageSize && (
             <Box mt={4} display="flex" justifyContent="center">
