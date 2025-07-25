@@ -11,17 +11,17 @@
 
 ## Развертывание на VPS
 ### 1. Подготовка сервера
-# Обновление системы
+#### Обновление системы
 sudo apt update && sudo apt upgrade -y
 
-# Установка необходимых пакетов
+#### Установка необходимых пакетов
 sudo apt install python3 python3-pip python3-venv nginx gunicorn postgresql postgresql-contrib git -y
 
 ### 2. Настройка базы данных
-# Вход в PostgreSQL от имени пользователя postgres
+#### Вход в PostgreSQL от имени пользователя postgres
 sudo -u postgres psql
 
-# Создание базы данных и пользователя
+#### Создание базы данных и пользователя
 CREATE DATABASE cloud_storage;
 CREATE USER clouduser WITH PASSWORD 'your_secure_password';
 ALTER ROLE clouduser SET client_encoding TO 'utf8';
@@ -31,39 +31,39 @@ GRANT ALL PRIVILEGES ON DATABASE cloud_storage TO clouduser;
 \q
 
 ### 3. Настройка бекенда
-# Клонирование репозитория
+#### Клонирование репозитория
 git clone https://github.com/Yahmice/CloudStorage.git
 cd CloudStorage/backend
 
-# Создание и активация виртуального окружения
+#### Создание и активация виртуального окружения
 python3 -m venv env
 source env/bin/activate
 
-# Установка зависимостей
+#### Установка зависимостей
 pip install -r requirements.txt
 
-# Настройка переменных окружения
-# Создайте файл .env или настройте переменные окружения в системе
+#### Настройка переменных окружения
+#### Создайте файл .env или настройте переменные окружения в системе
 cp .env.example .env
 nano .env
-# Укажите свои значения для DJANGO_SECRET_KEY, DB_NAME, DB_USER, DB_PASSWORD и т.д.
+#### Укажите свои значения для DJANGO_SECRET_KEY, DB_NAME, DB_USER, DB_PASSWORD и т.д.
 
-# Применение миграций
+#### Применение миграций
 python manage.py migrate
 
-# Создание суперпользователя (администратора)
+#### Создание суперпользователя (администратора)
 python manage.py createsuperuser
 
-# Сбор статических файлов
+#### Сбор статических файлов
 python manage.py collectstatic --noinput
 
 ### 4. Настройка фронтенда
 cd ../frontend
 
-# Установка зависимостей
+#### Установка зависимостей
 npm install
 
-# Сборка проекта для продакшена
+#### Сборка проекта для продакшена
 npm run build
 
 ### 5. Настройка gunicorn
@@ -154,14 +154,14 @@ sudo systemctl status certbot.timer
 
 ### 10. Устранение неполадок
 #### Если что-то не работает, проверьте логи:
-# Логи Gunicorn
+#### Логи Gunicorn
 sudo journalctl -u gunicorn -f
 
-# Логи Nginx
+#### Логи Nginx
 sudo tail -f /var/log/nginx/error.log
 sudo tail -f /var/log/nginx/access.log
 
-# Логи Django
+#### Логи Django
 tail -f /path/to/CloudStorage/backend/logs/django.log
 
 #### Убедитесь, что все пути в конфигурационных файлах указаны правильно.
@@ -175,7 +175,7 @@ sudo chmod 660 /path/to/CloudStorage/backend/cloud_storage.sock
 cd /path/to/CloudStorage
 git pull origin main
 
-# Бэкенд
+#### Бэкенд
 cd backend
 source env/bin/activate
 pip install -r requirements.txt
@@ -183,7 +183,7 @@ python manage.py migrate
 python manage.py collectstatic --noinput
 sudo systemctl restart gunicorn
 
-# Фронтенд
+#### Фронтенд
 cd ../frontend
 npm install
 npm run build
