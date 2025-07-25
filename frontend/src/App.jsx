@@ -19,12 +19,12 @@ const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
   
-  useEffect(() => {
+  useEffect(() => {    
     dispatch(loadUserFromStorage());
-    if (isAuthenticated) {
+    if (isAuthenticated) {      
       dispatch(loadFilesFromStorage());
     }
-  }, [dispatch, isAuthenticated]);
+  }, [dispatch, isAuthenticated]);  
   
   if (loading) {
     return (
@@ -42,8 +42,7 @@ const AppContent = () => {
   return (
     <>
       <Header />
-      <Routes>
-        {/* Публичные маршруты */}
+      <Routes>        
         <Route path="/" element={<Home />} />
         <Route
           path="/login"
@@ -53,14 +52,12 @@ const AppContent = () => {
           path="/register"
           element={!isAuthenticated ? <Register /> : <Navigate to="/" />}
         />
-
-        {/* Приватные маршруты (только для авторизованных пользователей) */}
+        
         <Route
           path="/dashboard"
           element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />}
         />
-
-        {/* Административные маршруты (только для пользователей с is_admin) */}
+        
         <Route
           path="/admin"
           element={
@@ -77,8 +74,7 @@ const AppContent = () => {
             )
           }
         />
-
-        {/* Редирект на главную страницу для неизвестных маршрутов */}
+        
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </>

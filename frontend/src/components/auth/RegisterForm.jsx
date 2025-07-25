@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TextField, Button, CircularProgress } from '@mui/material';
+import { TextField, Button, CircularProgress, Alert } from '@mui/material';
 
 const RegisterForm = ({ onSubmit, loading }) => {
   const [formData, setFormData] = useState({
@@ -9,28 +9,49 @@ const RegisterForm = ({ onSubmit, loading }) => {
     password: '',
     password2: ''
   });
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
-    });
+    });    
+    if (error) setError('');
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    if (formData.password === formData.password2) {
-      onSubmit({
-        username: formData.username,
-        email: formData.email,
-        full_name: formData.full_name,
-        password: formData.password
-      });
-    }
+    e.preventDefault();    
+    if (formData.password !== formData.password2) {
+      setError('Пароли не совпадают');
+      return;
+    }    
+    if (!formData.username || !formData.email || !formData.password) {
+      setError('Пожалуйста, заполните все обязательные поля');
+      return;
+    }    
+    console.log('Sending registration data:', {
+      username: formData.username,
+      email: formData.email,
+      full_name: formData.full_name,
+      password: formData.password,
+      confirm_password: formData.password2
+    });    
+    onSubmit({
+      username: formData.username,
+      email: formData.email,
+      full_name: formData.full_name,
+      password: formData.password,
+      confirm_password: formData.password2 
+    });
   };
 
   return (
     <form onSubmit={handleSubmit}>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
       <TextField
         label="Username"
         name="username"

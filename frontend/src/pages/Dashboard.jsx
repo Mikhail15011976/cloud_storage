@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import UploadIcon from '@mui/icons-material/Upload';
-import { FileList, UploadButton, RenameDialog } from '../components/files';
+import { FileList, UploadButton } from '../components/files';
 import api from '../services/api';
 
 function Dashboard() {
@@ -20,10 +20,6 @@ function Dashboard() {
     page: 1,
     pageSize: 20,
     totalCount: 0
-  });
-  const [renameDialog, setRenameDialog] = useState({
-    open: false,
-    file: null
   });
   const { enqueueSnackbar } = useSnackbar();
 
@@ -78,30 +74,21 @@ function Dashboard() {
         responseType: 'blob'
       });
       
-      console.log('Download response headers:', response.headers);
-      
       const contentDisposition = response.headers['content-disposition'];
       let fileName = `file_${id}`;
       if (contentDisposition) {
         const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
         if (fileNameMatch && fileNameMatch[1]) {
           fileName = fileNameMatch[1];
-          console.log('Extracted filename from Content-Disposition:', fileName);
-        } else {
-          console.warn('Could not extract filename from Content-Disposition:', contentDisposition);
         }
       } else {
-        console.warn('Content-Disposition header not found in response');        
         const file = files.find(f => f.id === id);
         if (file && file.original_name) {
           fileName = file.original_name;
-          console.log('Fallback to original_name from file list:', fileName);
         }
       }
       
       const contentType = response.headers['content-type'];
-      console.log('Content-Type from response:', contentType);
-      
       const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType || 'application/octet-stream' }));
       const link = document.createElement('a');
       link.href = url;
@@ -139,26 +126,17 @@ function Dashboard() {
     }
   };
 
-  const handleRename = (file) => {
-    setRenameDialog({
-      open: true,
-      file: file
-    });
-  };
-
-  const handleRenameClose = () => {
-    setRenameDialog({
-      open: false,
-      file: null
-    });
-  };
-
-  const handleRenameSuccess = (fileId, newName) => {
-    setFiles(files.map(file => 
-      file.id === fileId ? { ...file, original_name: newName } : file
-    ));
-    enqueueSnackbar('Файл успешно переименован', { variant: 'success' });
-    handleRenameClose();
+  const handleRename = async (id, newName) => {
+    try {
+      await api.patch(`/files/${id}/rename/`, { new_name: newName });
+      setFiles(files.map(file => 
+        file.id === id ? { ...file, original_name: newName } : file
+      ));
+      enqueueSnackbar('Файл успешно переименован', { variant: 'success' });
+    } catch (error) {
+      console.error('Error renaming file:', error);
+      enqueueSnackbar('Ошибка при переименовании файла', { variant: 'error' });
+    }
   };
 
   const handleCommentUpdate = async (id, newComment) => {
@@ -213,7 +191,7 @@ function Dashboard() {
         <Grid item xs={12} md={9}>
           <Box mb={3} display="flex" justifyContent="space-between" alignItems="center">
             <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
-              Мои файлы
+              My Files
             </Typography>
           </Box>
           
@@ -239,15 +217,6 @@ function Dashboard() {
           )}
         </Grid>
       </Grid>
-
-      {renameDialog.file && (
-        <RenameDialog
-          open={renameDialog.open}
-          onClose={handleRenameClose}
-          file={renameDialog.file}
-          onRename={handleRenameSuccess}
-        />
-      )}
     </Container>
   );
 }

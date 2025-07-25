@@ -156,8 +156,7 @@ export default function Admin() {
         <Typography variant="h4" gutterBottom>
           Admin Dashboard
         </Typography>
-
-        {/* Вкладки для разделения функционала */}
+        
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
@@ -167,8 +166,7 @@ export default function Admin() {
           <Tab label="Users" />
           <Tab label="Settings" />
         </Tabs>
-
-        {/* Вкладка "Users" - список пользователей */}
+        
         {activeTab === 0 && (
           <>
             {users.length === 0 ? (
@@ -257,8 +255,7 @@ export default function Admin() {
           </Box>
         )}
       </Box>
-
-      {/* Уведомление об успехе или ошибке */}
+      
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}

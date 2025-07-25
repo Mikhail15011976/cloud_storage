@@ -4,7 +4,7 @@ import { Button, LinearProgress, Dialog, DialogTitle, DialogContent, DialogActio
 import { uploadFile } from '../../services/files';
 import { addFile } from '../../store/slices/filesSlice';
 
-export const UploadButton = ({ onSuccess }) => {
+export const UploadButton = ({ onSuccess, userId }) => {
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -16,7 +16,7 @@ export const UploadButton = ({ onSuccess }) => {
     const file = e.target.files[0];
     if (file) {
       setSelectedFile(file);
-      setDialogOpen(true); 
+      setDialogOpen(true);
     }
   };
 
@@ -31,14 +31,17 @@ export const UploadButton = ({ onSuccess }) => {
 
     setUploading(true);
     setProgress(0);
-    setDialogOpen(false); 
+    setDialogOpen(false);
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('original_name', selectedFile.name);
       if (comment.trim()) {
-        formData.append('comment', comment); 
+        formData.append('comment', comment);
+      }      
+      if (userId) {
+        formData.append('userId', userId);
       }
 
       const response = await uploadFile(formData, (progressEvent) => {
@@ -50,7 +53,7 @@ export const UploadButton = ({ onSuccess }) => {
 
       dispatch(addFile(response));
       if (onSuccess) {
-        onSuccess(response);
+        onSuccess(response); 
       }
     } catch (error) {
       console.error('Upload failed:', error);
@@ -89,8 +92,7 @@ export const UploadButton = ({ onSuccess }) => {
           style={{ marginTop: '10px' }}
         />
       )}
-
-      {/* Диалоговое окно для ввода комментария */}
+      
       <Dialog open={dialogOpen} onClose={handleDialogClose} fullWidth maxWidth="sm">
         <DialogTitle>Добавить комментарий к файлу</DialogTitle>
         <DialogContent>
