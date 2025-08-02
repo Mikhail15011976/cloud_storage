@@ -9,34 +9,21 @@ from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 
-# Настройка логирования для отладки
 logger = logging.getLogger(__name__)
 
 class UserManager(BaseUserManager):
     """Менеджер для кастомной модели User"""
     def create_user(self, username, email, full_name, password=None, **extra_fields):
+        # Валидация входных данных
         if not email:
-            raise ValueError('Email обязателен')
+            raise ValueError(_('Email обязателен'))
         if not username:
-            raise ValueError('Username обязателен')
-        
-        username_validator = RegexValidator(
-            regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}',
-            message=_('Username должен начинаться с буквы, содержать только буквы и цифры, длина 4-20 символов.')
-        )
-        username_validator(username)
-        
-        email_validator = RegexValidator(
-            regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
-            message=_('Введите корректный email.')
-        )
-        email_validator(email)
-        
-        full_name_validator = RegexValidator(
-            regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+',
-            message=_('Полное имя может содержать только буквы, пробелы и дефисы.')
-        )
-        full_name_validator(full_name)
+            raise ValueError(_('Username обязателен'))
+
+        # Валидация формата данных
+        self._validate_username(username)
+        self._validate_email(email)
+        self._validate_full_name(full_name)
 
         email = self.normalize_email(email)
         user = self.model(
@@ -47,11 +34,11 @@ class UserManager(BaseUserManager):
         )
 
         if password:
-            from .validators import PasswordValidator
-            PasswordValidator()(password)
-            user.set_password(password)
+            self._validate_password(password)
+            user.set_password(password)  
 
         user.save(using=self._db)
+        logger.info(f"User created: {username}")  
         return user
 
     def create_superuser(self, username, email, full_name, password=None, **extra_fields):
@@ -60,11 +47,36 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_admin', True)
 
         if extra_fields.get('is_staff') is not True:
-            raise ValueError('Суперпользователь должен иметь is_staff=True.')
+            raise ValueError(_('Суперпользователь должен иметь is_staff=True.'))
         if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Суперпользователь должен иметь is_superuser=True.')
+            raise ValueError(_('Суперпользователь должен иметь is_superuser=True.'))
 
         return self.create_user(username, email, full_name, password, **extra_fields)
+
+    def _validate_username(self, username):
+        validator = RegexValidator(
+            regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
+            message=_('Username должен начинаться с буквы, содержать только буквы и цифры, длина 4-20 символов.')
+        )
+        validator(username)
+
+    def _validate_email(self, email):
+        validator = RegexValidator(
+            regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
+            message=_('Введите корректный email.')
+        )
+        validator(email)
+
+    def _validate_full_name(self, full_name):
+        validator = RegexValidator(
+            regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
+            message=_('Полное имя может содержать только буквы, пробелы и дефисы.')
+        )
+        validator(full_name)
+
+    def _validate_password(self, password):
+        from .validators import PasswordValidator
+        PasswordValidator()(password)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -75,7 +87,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
         validators=[
             RegexValidator(
-                regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}',
+                regex=r'^[a-zA-Z][a-zA-Z0-9]{3,19}$',
                 message=_('Username должен начинаться с буквы, содержать только буквы и цифры, длина 4-20 символов.')
             )
         ],
@@ -88,7 +100,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
         validators=[
             RegexValidator(
-                regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
+                regex=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
                 message=_('Введите корректный email.')
             )
         ],
@@ -99,7 +111,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=255,
         validators=[
             RegexValidator(
-                regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+',
+                regex=r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$',
                 message=_('Полное имя может содержать только буквы, пробелы и дефисы.')
             )
         ]
@@ -161,8 +173,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name_plural = _('users')
         ordering = ['-date_joined']
         permissions = [
-            ("can_view_all_files", "Может просматривать все файлы"),
-            ("can_manage_users", "Может управлять пользователями"),
+            ("can_view_all_files", _("Может просматривать все файлы")),
+            ("can_manage_users", _("Может управлять пользователями")),
         ]
 
     def __str__(self):
@@ -231,7 +243,7 @@ class File(models.Model):
         max_length=255,
         validators=[
             RegexValidator(
-                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\']+',
+                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\']+$',
                 message=_('Имя файла содержит недопустимые символы.')
             )
         ]
@@ -271,7 +283,7 @@ class File(models.Model):
         max_length=500,
         validators=[
             RegexValidator(
-                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\'\"]*',
+                regex=r'^[\w\s\-\.\(\)\[\]!@#$%^&+=;,\'\"]*$',
                 message=_('Комментарий содержит недопустимые символы.')
             )
         ]
@@ -325,45 +337,66 @@ class File(models.Model):
                 )
 
     def save(self, *args, **kwargs):
-        """Переопределение метода сохранения для установки имени, типа и размера файла"""        
-        if self.file and not self.original_name:
-            self.original_name = os.path.basename(self.file.name)
-        
-        if self.file:
-            determined_file_type = self.get_file_type()
-            if self.file_type != determined_file_type:
-                self.file_type = determined_file_type
-                logger.info(f"Set file_type for {self.original_name} to {self.file_type}")
-            else:
-                logger.debug(f"File type for {self.original_name} remains {self.file_type}")
-       
-        if self.file:
-            if hasattr(self.file, 'path') and os.path.exists(self.file.path):                
-                self.size = os.path.getsize(self.file.path)
-            elif hasattr(self.file, 'size'):                
-                self.size = self.file.size
-            else:                
-                self.size = 0
-        else:
-            self.size = 0
-        
-        if not self.shared_link and self.is_public:
-            self.shared_link = uuid.uuid4().hex[:15]
+        """Переопределение метода сохранения"""
+        self._set_original_name()
+        self._determine_file_type()
+        self._calculate_file_size()
+        self._generate_shared_link()
         
         self.full_clean()
         super().save(*args, **kwargs)
 
+    def _set_original_name(self):
+        """Установка оригинального имени файла"""
+        if self.file and not self.original_name:
+            self.original_name = os.path.basename(self.file.name)
+
+    def _determine_file_type(self):
+        """Определение типа файла"""
+        if self.file:
+            determined_type = self._get_file_type()
+            if self.file_type != determined_type:
+                self.file_type = determined_type
+                logger.debug(f"File type set to {determined_type} for {self.original_name}")
+
+    def _calculate_file_size(self):
+        """Расчет размера файла"""
+        if self.file:
+            if hasattr(self.file, 'path') and os.path.exists(self.file.path):
+                self.size = os.path.getsize(self.file.path)
+            elif hasattr(self.file, 'size'):
+                self.size = self.file.size
+            else:
+                self.size = 0
+        else:
+            self.size = 0
+
+    def _generate_shared_link(self):
+        """Генерация ссылки для общего доступа"""
+        if not self.shared_link and self.is_public:
+            self.shared_link = uuid.uuid4().hex[:15]
+
     def delete(self, *args, **kwargs):
         """Удаление файла с диска перед удалением записи из базы"""
-        if self.file and os.path.isfile(self.file.path):
-            os.remove(self.file.path)
+        self._delete_physical_file()
         super().delete(*args, **kwargs)
 
-    def get_file_type(self):
+    def _delete_physical_file(self):
+        """Удаление физического файла"""
+        if self.file and os.path.isfile(self.file.path):
+            try:
+                os.remove(self.file.path)
+                logger.info(f"Deleted physical file: {self.file.path}")
+            except Exception as e:
+                logger.error(f"Error deleting file {self.file.path}: {str(e)}")
+                raise ValidationError(_("Ошибка при удалении файла"))
+
+    def _get_file_type(self):
         """Определение типа файла на основе расширения"""
         if not self.file:
-            logger.warning(f"No file associated with {self.original_name}, defaulting to OTHER")
+            logger.warning(f"No file associated with {self.original_name}")
             return self.FileType.OTHER
+
         ext = os.path.splitext(self.file.name)[1].lower()
         file_type_map = {
             '.pdf': self.FileType.PDF,
@@ -373,28 +406,27 @@ class File(models.Model):
             '.png': self.FileType.IMAGE,
             '.txt': self.FileType.TEXT,
         }
-        determined_type = file_type_map.get(ext, self.FileType.OTHER)
-        logger.debug(f"Determined file type for extension {ext} as {determined_type} for file {self.original_name}")
-        return determined_type
+        return file_type_map.get(ext, self.FileType.OTHER)
 
     @property
     def human_readable_size(self):
-        """Возвращает размер файла в читаемом формате (B, KB, MB, GB, TB)"""
-        if self.size == 0 and hasattr(self.file, 'path') and os.path.exists(self.file.path):
-            try:
-                self.size = os.path.getsize(self.file.path)
-                self.save(update_fields=['size'])
-                logger.info(f"Updated file size for {self.original_name} to {self.size} bytes")
-            except Exception as e:
-                logger.error(f"Error updating file size for {self.original_name}: {str(e)}")
-                pass
-        
-        size = self.size
+        """Возвращает размер файла в читаемом формате"""
+        size = self._get_actual_file_size()
         for unit in ['B', 'KB', 'MB', 'GB']:
             if size < 1024:
                 return f"{size:.1f} {unit}"
             size /= 1024
         return f"{size:.1f} TB"
+
+    def _get_actual_file_size(self):
+        """Получение актуального размера файла"""
+        if self.size == 0 and hasattr(self.file, 'path') and os.path.exists(self.file.path):
+            try:
+                self.size = os.path.getsize(self.file.path)
+                self.save(update_fields=['size'])
+            except Exception as e:
+                logger.error(f"Error updating file size: {str(e)}")
+        return self.size
 
     def can_be_accessed_by(self, user):
         """Проверяет, может ли пользователь получить доступ к файлу"""

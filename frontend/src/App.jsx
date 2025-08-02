@@ -11,6 +11,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import UserFiles from './pages/UserFiles';
+import NotFound from './pages/NotFound';
 import { CircularProgress, Box } from '@mui/material';
 import { SnackbarProvider } from 'notistack';
 
@@ -75,7 +76,7 @@ const AppContent = () => {
           }
         />
         
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path="*" element={<NotFound />} /> 
       </Routes>
     </>
   );

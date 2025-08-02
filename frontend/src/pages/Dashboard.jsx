@@ -18,8 +18,9 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
     page: 1,
-    pageSize: 20,
-    totalCount: 0
+    pageSize: 5,
+    totalCount: 0,
+    totalPages: 1
   });
   const { enqueueSnackbar } = useSnackbar();
 
@@ -33,10 +34,11 @@ function Dashboard() {
         }
       });
       
-      setFiles(response.data.results || response.data);
+      setFiles(response.data.results || []);
       setPagination(prev => ({
         ...prev,
-        totalCount: response.data.count || response.data.length
+        totalCount: response.data.count || 0,
+        totalPages: Math.ceil((response.data.count || 0) / pagination.pageSize)
       }));
     } catch (error) {
       console.error('Error fetching files:', error);
@@ -177,7 +179,10 @@ function Dashboard() {
         <Grid item xs={12} md={3}>
           <Stack spacing={2}>
             <UploadButton 
-              onSuccess={fetchFiles}
+              onSuccess={() => {
+                setPagination(prev => ({ ...prev, page: 1 }));
+                fetchFiles();
+              }}
               startIcon={<UploadIcon />}
               sx={{ 
                 width: '100%',
@@ -193,6 +198,9 @@ function Dashboard() {
             <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
               My Files
             </Typography>
+            <Typography variant="body1">
+              Всего файлов: {pagination.totalCount}
+            </Typography>
           </Box>
           
           <FileList 
@@ -203,12 +211,17 @@ function Dashboard() {
             onRename={handleRename}
             onCommentUpdate={handleCommentUpdate}
             onView={handleView}
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={(newPage) => {
+              setPagination(prev => ({ ...prev, page: newPage }));
+            }}
           />
           
           {pagination.totalCount > pagination.pageSize && (
             <Box mt={4} display="flex" justifyContent="center">
               <Pagination
-                count={Math.ceil(pagination.totalCount / pagination.pageSize)}
+                count={pagination.totalPages}
                 page={pagination.page}
                 onChange={handlePageChange}
                 color="primary"

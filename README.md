@@ -17,23 +17,29 @@
     # Установка необходимых пакетов
     sudo apt install python3 python3-pip python3-venv nginx gunicorn postgresql postgresql-contrib git -y
 
-### 2. Настройка базы данных
+### 2. Клонирование репозитория
+
+    # Клонирование репозитория с GitHub
+    git clone https://github.com/Mikhail15011976/cloud_storage
+    cd cloud_storage\
+
+### 3. Настройка базы данных
+
     # Вход в PostgreSQL от имени пользователя postgres
     sudo -u postgres psql
 
-    # Создание базы данных и пользователя
+    # Создание базы данных и пользователя согласно проекту
     CREATE DATABASE cloud_storage;
-    CREATE USER clouduser WITH PASSWORD 'your_secure_password';
-    ALTER ROLE clouduser SET client_encoding TO 'utf8';
-    ALTER ROLE clouduser SET default_transaction_isolation TO 'read committed';
-    ALTER ROLE clouduser SET timezone TO 'UTC';
-    GRANT ALL PRIVILEGES ON DATABASE cloud_storage TO clouduser;
+    CREATE USER mikhail WITH PASSWORD '0404';
+    ALTER ROLE mikhail SET client_encoding TO 'utf8';
+    ALTER ROLE mikhail SET default_transaction_isolation TO 'read committed';
+    ALTER ROLE mikhail SET timezone TO 'UTC';
+    GRANT ALL PRIVILEGES ON DATABASE cloud_storage TO mikhail;
     \q
 
-### 3. Настройка бекенда
-    # Клонирование репозитория
-    git clone https://github.com/Yahmice/CloudStorage.git
-    cd CloudStorage/backend
+### 4. Настройка бекенда
+    # Переход в директорию backend
+    cd backend
 
     # Создание и активация виртуального окружения
     python3 -m venv env
@@ -44,9 +50,17 @@
 
     # Настройка переменных окружения
     # Создайте файл .env или настройте переменные окружения в системе
-    cp .env.example .env
     nano .env
     # Укажите свои значения для DJANGO_SECRET_KEY, DB_NAME, DB_USER, DB_PASSWORD и т.д.
+    # Пример содержимого файла .env:
+    # DJANGO_SECRET_KEY=your-secret-key-here
+    # DJANGO_DEBUG=False
+    # DB_ENGINE=django.db.backends.postgresql
+    # DB_NAME=cloud_storage
+    # DB_USER=mikhail
+    # DB_PASSWORD=0404
+    # DB_HOST=localhost
+    # DB_PORT=5432
 
     # Применение миграций
     python manage.py migrate
@@ -55,9 +69,9 @@
     python manage.py createsuperuser
 
     # Сбор статических файлов
-    python manage.py collectstatic --noinput
+    python manage.py collectstatic --noinput    
 
-### 4. Настройка фронтенда
+### 5. Настройка фронтенда
     cd ../frontend
 
     # Установка зависимостей
@@ -66,7 +80,7 @@
     # Сборка проекта для продакшена
     npm run build
 
-### 5. Настройка gunicorn
+### 6. Настройка gunicorn
 #### Создайте systemd-сервис для запуска Gunicorn:
     sudo nano /etc/systemd/system/gunicorn.service
 #### Вставьте следующее содержимое, заменив пути и пользователя на свои:
@@ -89,7 +103,7 @@
     sudo systemctl enable gunicorn
     sudo systemctl status gunicorn
 
-### 6. Настройка Nginx
+### 7. Настройка Nginx
 #### Настройте Nginx как обратный прокси для Gunicorn и для обслуживания статических файлов фронтенда:
     sudo nano /etc/nginx/sites-available/cloud_storage
 
@@ -134,12 +148,12 @@
     sudo nginx -t
     sudo systemctl restart nginx
 
-### 7. Настройка брандмауэра
+### 8. Настройка брандмауэра
 #### Разрешите доступ к портам 80 (HTTP) и, при необходимости, 443 (HTTPS):
     sudo ufw allow 'Nginx Full'
     sudo ufw status
 
-### 8. Дополнительные настройки безопасности (опционально)
+### 9. Дополнительные настройки безопасности (опционально)
 #### Настройте SSL/TLS с помощью Let's Encrypt для HTTPS:
     sudo apt install certbot python3-certbot-nginx -y
     sudo certbot --nginx -d your_domain
@@ -147,12 +161,12 @@
 #### Настройте автоматическое обновление сертификатов:
     sudo systemctl status certbot.timer
 
-### 9. Проверка работы приложения
+### 10. Проверка работы приложения
 #### Откройте браузер и перейдите по вашему домену или IP-адресу.
 #### Убедитесь, что фронтенд загружается, и вы можете войти в систему через созданного суперпользователя.
 #### Проверьте доступ к админ-панели по адресу http://your_domain/admin/.
 
-### 10. Устранение неполадок
+### 11. Устранение неполадок
 #### Если что-то не работает, проверьте логи:
     # Логи Gunicorn
     sudo journalctl -u gunicorn -f
@@ -170,7 +184,7 @@
     sudo chmod -R 755 /path/to/CloudStorage
     sudo chmod 660 /path/to/CloudStorage/backend/cloud_storage.sock
 
-### 11. Обновление приложения
+### 12. Обновление приложения
 #### Для обновления приложения после внесения изменений в код:
     cd /path/to/CloudStorage
     git pull origin main
@@ -188,3 +202,32 @@
     npm install
     npm run build
     sudo systemctl restart nginx   
+
+### 13. Резервное копирование и восстановление
+#### Создание резервных копий базы данных
+    # Создание дампа базы данных PostgreSQL
+    sudo -u postgres pg_dump -Fc cloud_storage > /path/to/backups/cloud_storage_$(date +%Y-%m-%d).dump
+
+    # Для автоматического ежедневного резервного копирования добавьте в cron:
+    crontab -e
+
+    # Добавьте строку (выполняется каждый день в 2:00 ночи)
+    0 2 * * * sudo -u postgres pg_dump -Fc cloud_storage > /path/to/backups/cloud_storage_$(date +\%Y-\%m-\%d).dump
+
+#### Резервное копирование файлов проекта
+    # Создание архива с проектом
+    tar -czvf /path/to/backups/cloud_storage_backup_$(date +%Y-%m-%d).tar.gz \
+        /path/to/CloudStorage/backend \
+        /path/to/CloudStorage/frontend \
+        /path/to/CloudStorage/README.md
+
+    # Автоматическое резервное копирование в cron (ежедневно в 3:00)
+    0 3 * * * tar -czvf /path/to/backups/cloud_storage_backup_$(date +\%Y-\%m-\%d).tar.gz /path/to/CloudStorage
+
+#### Восстановление из резервной копии
+    # Восстановление базы данных
+    sudo -u postgres pg_restore -d cloud_storage /path/to/backups/cloud_storage_2025-08-01.dump
+
+    # Восстановление файлов проекта
+    tar -xzvf /path/to/backups/cloud_storage_backup_2025-08-01.tar.gz -C /
+    
