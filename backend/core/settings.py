@@ -4,21 +4,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Базовые пути
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'media'), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
 
-# Безопасность
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-123')  
-DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'  
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,192.168.1.127').split(',')  
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1,http://192.168.1.127').split(',')  
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-# Настройки приложений
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS').split(',')
+
+CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS').split(',')
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -27,14 +26,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
-    # Сторонние приложения
     'rest_framework',
     'rest_framework.authtoken',  
     'corsheaders',  
     'drf_yasg',  
     'django_filters',  
     
-    # Локальные приложения
     'accounts.apps.AccountsConfig',  
 ]
 
@@ -52,7 +49,6 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'core.urls'  
 WSGI_APPLICATION = 'core.wsgi.application'  
 
-# Настройки шаблонов
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -69,19 +65,17 @@ TEMPLATES = [
     },
 ]
 
-# Настройки базы данных
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),  
-        'NAME': os.getenv('DB_NAME', os.path.join(BASE_DIR, 'db.sqlite3')),  
-        'USER': os.getenv('DB_USER', ''),  
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),  
-        'HOST': os.getenv('DB_HOST', ''),  
-        'PORT': os.getenv('DB_PORT', ''),  
+        'ENGINE': os.getenv('DB_ENGINE'),
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
 
-# Валидация паролей
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',  
@@ -89,7 +83,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',  
         'OPTIONS': {
-            'min_length': 8,
+            'min_length': int(os.getenv('PASSWORD_MIN_LENGTH')),
         }
     },
     {
@@ -103,10 +97,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Кастомная модель пользователя
 AUTH_USER_MODEL = 'accounts.User'
 
-# Настройки REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',  
@@ -120,11 +112,11 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',  
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day', 
-        'user': '1000/day',  
+        'anon': os.getenv('THROTTLE_ANON_RATE'), 
+        'user': os.getenv('THROTTLE_USER_RATE'),  
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',  
-    'PAGE_SIZE': 20,  
+    'PAGE_SIZE': int(os.getenv('PAGE_SIZE')),  
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',  
         'rest_framework.filters.SearchFilter',  
@@ -132,54 +124,47 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Проверка и добавление JWT, если установлен
 try:
     import rest_framework_simplejwt
     INSTALLED_APPS.append('rest_framework_simplejwt')  
     REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'].append(
         'rest_framework_simplejwt.authentication.JWTAuthentication' 
     )
-    # Настройки JWT
     from datetime import timedelta
     SIMPLE_JWT = {
-        'ACCESS_TOKEN_LIFETIME': timedelta(hours=1), 
-        'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  
-        'ROTATE_REFRESH_TOKENS': True,  
-        'BLACKLIST_AFTER_ROTATION': True,  
+        'ACCESS_TOKEN_LIFETIME': timedelta(hours=int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME_HOURS'))), 
+        'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.getenv('JWT_REFRESH_TOKEN_LIFETIME_DAYS'))),  
+        'ROTATE_REFRESH_TOKENS': os.getenv('JWT_ROTATE_REFRESH_TOKENS').lower() in ('true', '1', 'yes'),  
+        'BLACKLIST_AFTER_ROTATION': os.getenv('JWT_BLACKLIST_AFTER_ROTATION').lower() in ('true', '1', 'yes'),  
     }
 except ImportError:
     pass  
 
-# Настройки CORS
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",    
-    "http://127.0.0.1:3000",
-    "http://192.168.1.127:3000",
-]
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS').split(',')
 
-# Международные настройки
-LANGUAGE_CODE = 'en-us'  
-TIME_ZONE = 'UTC'  
-USE_I18N = True  
-USE_L10N = True  
-USE_TZ = True  
+CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS').lower() in ('true', '1', 'yes')
 
-# Статические файлы
+LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE')  
+
+TIME_ZONE = os.getenv('DJANGO_TIME_ZONE')  
+
+USE_I18N = os.getenv('DJANGO_USE_I18N').lower() in ('true', '1', 'yes')  
+
+USE_L10N = os.getenv('DJANGO_USE_L10N').lower() in ('true', '1', 'yes')  
+
+USE_TZ = os.getenv('DJANGO_USE_TZ').lower() in ('true', '1', 'yes')  
+
 STATIC_URL = '/static/'  
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]  
 
-# Медиа файлы
 MEDIA_URL = '/media/'  
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  
-MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 50 * 1024 * 1024))  
-FILE_UPLOAD_PERMISSIONS = 0o644  
+MEDIA_ROOT = os.getenv('MEDIA_ROOT')  
+MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE'))  
+FILE_UPLOAD_PERMISSIONS = int(os.getenv('FILE_UPLOAD_PERMISSIONS'), 8)  
 
-# Настройки по умолчанию
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'  
 
-# Логирование
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -201,37 +186,36 @@ LOGGING = {
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs/django.log'),
-            'maxBytes': 1024 * 1024 * 5,  
-            'backupCount': 5, 
+            'maxBytes': int(os.getenv('LOG_MAX_BYTES')),  
+            'backupCount': int(os.getenv('LOG_BACKUP_COUNT')), 
             'formatter': 'verbose',
             'encoding': 'utf-8',
         },
     },
     'root': {
         'handlers': ['console'],
-        'level': 'INFO',
+        'level': os.getenv('ROOT_LOG_LEVEL'),
     },
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+            'level': os.getenv('DJANGO_LOG_LEVEL'),
             'propagate': False,
         },
         'accounts': {
             'handlers': ['console', 'file'],
-            'level': 'DEBUG',  
+            'level': os.getenv('ACCOUNTS_LOG_LEVEL'),  
         },
     },
 }
 
-# Настройки для production (при выключенном DEBUG)
 if not DEBUG:
-    SECURE_HSTS_SECONDS = 31536000  
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True  
-    SECURE_SSL_REDIRECT = True  
-    SESSION_COOKIE_SECURE = True  
-    CSRF_COOKIE_SECURE = True  
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS'))  
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS').lower() in ('true', '1', 'yes')  
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT').lower() in ('true', '1', 'yes')  
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE').lower() in ('true', '1', 'yes')  
+    CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE').lower() in ('true', '1', 'yes')  
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  
-    SECURE_BROWSER_XSS_FILTER = True  
-    SECURE_CONTENT_TYPE_NOSNIFF = True  
-    X_FRAME_OPTIONS = 'DENY'  
+    SECURE_BROWSER_XSS_FILTER = os.getenv('SECURE_BROWSER_XSS_FILTER').lower() in ('true', '1', 'yes')  
+    SECURE_CONTENT_TYPE_NOSNIFF = os.getenv('SECURE_CONTENT_TYPE_NOSNIFF').lower() in ('true', '1', 'yes')  
+    X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS')  

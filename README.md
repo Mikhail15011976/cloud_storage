@@ -30,16 +30,16 @@
 
     # Создание базы данных и пользователя согласно проекту
     CREATE DATABASE cloud_storage;
-    CREATE USER mikhail WITH PASSWORD '0404';
+    CREATE USER mikhail WITH PASSWORD 'secure_password';
     ALTER ROLE mikhail SET client_encoding TO 'utf8';
     ALTER ROLE mikhail SET default_transaction_isolation TO 'read committed';
     ALTER ROLE mikhail SET timezone TO 'UTC';
-    GRANT ALL PRIVILEGES ON DATABASE cloud_storage TO mikhail;
+    GRANT ALL PRIVILEGES ON DATABASE cloud_storage TO cloud_user;
     \q
 
 ### 4. Настройка бекенда
     # Переход в директорию backend
-    cd backend
+    cd ~/cloud_storage/backend
 
     # Создание и активация виртуального окружения
     python3 -m venv env
@@ -49,18 +49,60 @@
     pip install -r requirements.txt
 
     # Настройка переменных окружения
-    # Создайте файл .env или настройте переменные окружения в системе
+    # Создайте файл `.env` в корне backend с содержимым:    
     nano .env
-    # Укажите свои значения для DJANGO_SECRET_KEY, DB_NAME, DB_USER, DB_PASSWORD и т.д.
-    # Пример содержимого файла .env:
-    # DJANGO_SECRET_KEY=your-secret-key-here
-    # DJANGO_DEBUG=False
-    # DB_ENGINE=django.db.backends.postgresql
-    # DB_NAME=cloud_storage
-    # DB_USER=mikhail
-    # DB_PASSWORD=0404
-    # DB_HOST=localhost
-    # DB_PORT=5432
+    # Укажите свои значения:
+    DJANGO_SECRET_KEY=your-secret-key
+    DJANGO_DEBUG=True
+    DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,yourdomain.com
+    DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1,http://yourdomain.com
+
+    DB_ENGINE=django.db.backends.postgresql
+    DB_NAME=your_db_name
+    DB_USER=your_db_user
+    DB_PASSWORD=your_db_password
+    DB_HOST=localhost
+    DB_PORT=5432
+
+    PASSWORD_MIN_LENGTH=8
+
+    THROTTLE_ANON_RATE=100/day
+    THROTTLE_USER_RATE=1000/day
+    PAGE_SIZE=20
+
+    JWT_ACCESS_TOKEN_LIFETIME_HOURS=1
+    JWT_REFRESH_TOKEN_LIFETIME_DAYS=7
+    JWT_ROTATE_REFRESH_TOKENS=True
+    JWT_BLACKLIST_AFTER_ROTATION=True
+
+    CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    CORS_ALLOW_CREDENTIALS=True
+
+    DJANGO_LANGUAGE_CODE=en-us
+    DJANGO_TIME_ZONE=UTC
+    DJANGO_USE_I18N=True
+    DJANGO_USE_L10N=True
+    DJANGO_USE_TZ=True
+
+    MEDIA_ROOT=/path/to/your/media/folder
+    MAX_UPLOAD_SIZE=52428800
+    FILE_UPLOAD_PERMISSIONS=0o644
+
+    LOG_MAX_BYTES=5242880
+    LOG_BACKUP_COUNT=5
+    ROOT_LOG_LEVEL=INFO
+    DJANGO_LOG_LEVEL=INFO
+    ACCOUNTS_LOG_LEVEL=DEBUG
+
+    SECURE_HSTS_SECONDS=31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+    SECURE_SSL_REDIRECT=True
+    SESSION_COOKIE_SECURE=True
+    CSRF_COOKIE_SECURE=True
+    SECURE_BROWSER_XSS_FILTER=True
+    SECURE_CONTENT_TYPE_NOSNIFF=True
+    X_FRAME_OPTIONS=DENY
+      
 
     # Применение миграций
     python manage.py migrate
