@@ -13,7 +13,8 @@ import UploadIcon from '@mui/icons-material/Upload';
 import { FileList, UploadButton } from '../components/files';
 import api from '../services/api';
 
-function Dashboard() {
+const Dashboard = () => {
+  console.log('Dashboard rendered'); 
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
@@ -25,6 +26,7 @@ function Dashboard() {
   const { enqueueSnackbar } = useSnackbar();
 
   const fetchFiles = useCallback(async () => {
+    console.log('Fetching files...');
     try {
       setLoading(true);
       const response = await api.get('/files/', {
@@ -33,6 +35,7 @@ function Dashboard() {
           page_size: pagination.pageSize
         }
       });
+      console.log('Received files:', response.data);
       
       setFiles(response.data.results || []);
       setPagination(prev => ({
@@ -53,6 +56,7 @@ function Dashboard() {
   }, [fetchFiles]);
 
   const handlePageChange = (event, newPage) => {
+    console.log('Page changed:', newPage);
     setPagination(prev => ({
       ...prev,
       page: newPage
@@ -60,6 +64,7 @@ function Dashboard() {
   };
 
   const handleDelete = async (id) => {
+    console.log('Deleting file:', id);
     try {
       await api.delete(`/files/${id}/`);
       setFiles(files.filter(file => file.id !== id));
@@ -71,6 +76,7 @@ function Dashboard() {
   };
 
   const handleDownload = async (id) => {
+    console.log('Downloading file:', id);
     try {      
       const response = await api.get(`/files/${id}/download/`, {
         responseType: 'blob'
@@ -112,12 +118,12 @@ function Dashboard() {
   };
 
   const handleShare = async (id) => {
+    console.log('Sharing file:', id);
     try {
       const response = await api.post(`/files/${id}/share/`);
-      const sharedLink = response.data.shared_link;
-      const fullLink = `${window.location.origin}/public/files/${sharedLink}`;      
+      const sharedLink = response.data.shared_link;          
       
-      navigator.clipboard.writeText(fullLink).then(() => {
+      navigator.clipboard.writeText(sharedLink).then(() => {
         enqueueSnackbar('Ссылка для общего доступа скопирована в буфер обмена', { variant: 'success' });
       }, () => {
         enqueueSnackbar('Не удалось скопировать ссылку в буфер обмена', { variant: 'error' });
@@ -129,6 +135,7 @@ function Dashboard() {
   };
 
   const handleRename = async (id, newName) => {
+    console.log('Renaming file:', id, newName);
     try {
       await api.patch(`/files/${id}/rename/`, { new_name: newName });
       setFiles(files.map(file => 
@@ -142,6 +149,7 @@ function Dashboard() {
   };
 
   const handleCommentUpdate = async (id, newComment) => {
+    console.log('Updating comment:', id, newComment);
     try {
       await api.patch(`/files/${id}/`, { comment: newComment });
       setFiles(files.map(file => 
@@ -155,6 +163,7 @@ function Dashboard() {
   };
 
   const handleView = (id) => {
+    console.log('Viewing file:', id);
     try {      
       const viewUrl = `${api.defaults.baseURL}/files/${id}/download/`;      
       window.open(viewUrl, '_blank');
@@ -213,9 +222,7 @@ function Dashboard() {
             onView={handleView}
             page={pagination.page}
             totalPages={pagination.totalPages}
-            onPageChange={(newPage) => {
-              setPagination(prev => ({ ...prev, page: newPage }));
-            }}
+            onPageChange={handlePageChange}
           />
           
           {pagination.totalCount > pagination.pageSize && (
@@ -232,6 +239,6 @@ function Dashboard() {
       </Grid>
     </Container>
   );
-}
+};
 
 export default Dashboard;

@@ -13,14 +13,12 @@ logger = logging.getLogger(__name__)
 
 class UserManager(BaseUserManager):
     """Менеджер для кастомной модели User"""
-    def create_user(self, username, email, full_name, password=None, **extra_fields):
-        # Валидация входных данных
+    def create_user(self, username, email, full_name, password=None, **extra_fields):        
         if not email:
             raise ValueError(_('Email обязателен'))
         if not username:
             raise ValueError(_('Username обязателен'))
-
-        # Валидация формата данных
+        
         self._validate_username(username)
         self._validate_email(email)
         self._validate_full_name(full_name)
@@ -35,10 +33,10 @@ class UserManager(BaseUserManager):
 
         if password:
             self._validate_password(password)
-            user.set_password(password)  
+            user.set_password(password)
 
         user.save(using=self._db)
-        logger.info(f"User created: {username}")  
+        logger.info(f"User created: {username}")
         return user
 
     def create_superuser(self, username, email, full_name, password=None, **extra_fields):
@@ -188,7 +186,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def storage_used(self):
         """Возвращает объем использованного хранилища в байтах"""
-        return self.files.aggregate(total=Sum('size'))['total'] or 0
+        return self.files.filter(is_deleted=False).aggregate(total=Sum('size'))['total'] or 0
 
     @property
     def storage_left(self):
@@ -302,6 +300,12 @@ class File(models.Model):
         default=False,
     )
 
+    is_deleted = models.BooleanField(
+        _('is deleted'),
+        default=False,
+        help_text=_('Indicates if the file has been deleted')
+    )    
+
     file_type = models.CharField(
         _('file type'),
         max_length=50,
@@ -327,7 +331,7 @@ class File(models.Model):
 
     def clean(self):
         """Валидация перед сохранением, проверка квоты хранилища"""
-        if not self.pk:  
+        if not self.pk and not self.is_deleted:  
             file_size = self.size if self.size > 0 else (self.file.size if hasattr(self.file, 'size') else 0)
             if not self.owner.can_upload_file(file_size):
                 raise ValidationError(
@@ -337,12 +341,13 @@ class File(models.Model):
                 )
 
     def save(self, *args, **kwargs):
-        """Переопределение метода сохранения"""
-        self._set_original_name()
-        self._determine_file_type()
-        self._calculate_file_size()
-        self._generate_shared_link()
-        
+        """Переопределение метода сохранения"""        
+        if not self.is_deleted:
+            self._set_original_name()
+            self._determine_file_type()
+            self._calculate_file_size()
+            self._generate_shared_link()
+
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -362,34 +367,80 @@ class File(models.Model):
     def _calculate_file_size(self):
         """Расчет размера файла"""
         if self.file:
-            if hasattr(self.file, 'path') and os.path.exists(self.file.path):
-                self.size = os.path.getsize(self.file.path)
-            elif hasattr(self.file, 'size'):
-                self.size = self.file.size
-            else:
+            try:
+                if hasattr(self.file, 'path') and os.path.exists(self.file.path):
+                    self.size = os.path.getsize(self.file.path)
+                elif hasattr(self.file, 'size'):
+                    self.size = self.file.size
+                else:
+                    self.size = 0
+            except (FileNotFoundError, OSError):                
                 self.size = 0
+                logger.warning(f"File not found when calculating size: {getattr(self.file, 'path', 'unknown')}")
         else:
             self.size = 0
 
     def _generate_shared_link(self):
         """Генерация ссылки для общего доступа"""
         if not self.shared_link and self.is_public:
-            self.shared_link = uuid.uuid4().hex[:15]
+            self.shared_link = uuid.uuid4().hex[:16]
 
     def delete(self, *args, **kwargs):
-        """Удаление файла с диска перед удалением записи из базы"""
+        """Полное удаление файла с физическим удалением"""        
         self._delete_physical_file()
+        
         super().delete(*args, **kwargs)
+        logger.info(f"File completely deleted: {self.original_name} (ID: {self.id})")
+
+    def soft_delete(self, *args, **kwargs):
+        """Помечает файл как удаленный вместо физического удаления"""
+        self.is_deleted = True        
+        self.save(update_fields=['is_deleted'])
+        logger.info(f"File marked as deleted: {self.original_name} (ID: {self.id})")
 
     def _delete_physical_file(self):
         """Удаление физического файла"""
-        if self.file and os.path.isfile(self.file.path):
+        if self.file and hasattr(self.file, 'path'):
             try:
-                os.remove(self.file.path)
-                logger.info(f"Deleted physical file: {self.file.path}")
+                if os.path.isfile(self.file.path):
+                    os.remove(self.file.path)
+                    logger.info(f"Deleted physical file: {self.file.path}")
+            except (FileNotFoundError, OSError) as e:
+                logger.warning(f"File already deleted or not found: {self.file.path} - {str(e)}")
             except Exception as e:
                 logger.error(f"Error deleting file {self.file.path}: {str(e)}")
                 raise ValidationError(_("Ошибка при удалении файла"))
+            
+    def rename_physical_file(self, new_name):
+        """Переименовывает физический файл на диске"""
+        if self.file and hasattr(self.file, 'path'):
+            try:
+                old_path = self.file.path                
+                directory = os.path.dirname(old_path)
+                extension = os.path.splitext(old_path)[1]
+                new_filename = new_name + extension
+                new_path = os.path.join(directory, new_filename)                
+                
+                os.rename(old_path, new_path)                
+                
+                self.file.name = os.path.relpath(new_path, settings.MEDIA_ROOT)
+                logger.info(f"File renamed from {old_path} to {new_path}")
+                
+            except (FileNotFoundError, OSError) as e:
+                logger.error(f"Error renaming file: {str(e)}")
+                raise ValidationError(_("Ошибка при переименовании файла"))
+            
+    def save(self, *args, **kwargs):
+        """Переопределение метода сохранения"""        
+        if self.pk and not self.is_deleted:
+            try:
+                old_file = File.objects.get(pk=self.pk)
+                if old_file.original_name != self.original_name:
+                    self.rename_physical_file(self.original_name)
+            except File.DoesNotExist:
+                pass
+        
+        super().save(*args, **kwargs)        
 
     def _get_file_type(self):
         """Определение типа файла на основе расширения"""
@@ -420,16 +471,22 @@ class File(models.Model):
 
     def _get_actual_file_size(self):
         """Получение актуального размера файла"""
-        if self.size == 0 and hasattr(self.file, 'path') and os.path.exists(self.file.path):
+        if (self.size == 0 and not self.is_deleted and 
+            hasattr(self.file, 'path') and os.path.exists(self.file.path)):
             try:
-                self.size = os.path.getsize(self.file.path)
+                self.size = os.path.getsize(self.file.path)                
                 self.save(update_fields=['size'])
+            except (FileNotFoundError, OSError):
+                logger.warning(f"File not found when updating size: {self.file.path}")
+                self.size = 0
             except Exception as e:
                 logger.error(f"Error updating file size: {str(e)}")
         return self.size
 
     def can_be_accessed_by(self, user):
         """Проверяет, может ли пользователь получить доступ к файлу"""
+        if self.is_deleted:
+            return False
         if self.is_public:
             return True
         return user.is_authenticated and (user.is_admin or self.owner == user)

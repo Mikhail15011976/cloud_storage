@@ -49,7 +49,7 @@ export const FileGrid = ({ files, onFileClick }) => {
     <Grid container spacing={3} sx={{ padding: 2 }}>
       {files && files.length > 0 ? (
         files.map((file) => (
-          <Grid item xs={6} sm={4} md={3} lg={2} key={file.id || 'unknown-id'}>
+          <Grid item xs={12} sm={6} md={4} lg={3} key={file.id || 'unknown-id'}>
             <Tooltip title={getFileTypeLabel(file.file_type || 'OTHER')} arrow>
               <Paper
                 elevation={3}

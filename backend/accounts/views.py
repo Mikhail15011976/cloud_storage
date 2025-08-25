@@ -2,16 +2,10 @@ import os
 import uuid
 import logging
 import mimetypes
-from datetime import datetime, timedelta
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404
 from django.utils import timezone
-from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.shortcuts import get_object_or_404
 from django.contrib.auth import logout
-from django.core.cache import cache
-from django.views.decorators.cache import cache_page
-from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -32,17 +26,10 @@ from .serializers import (
 )
 from .permissions import (
     IsAdminUser,
-    IsOwnerOrAdmin,
-    IsUserOwnerOrAdmin,
-    IsFilePublicOrOwnerOrAdmin
+    IsOwnerOrAdmin
 )
 
 logger = logging.getLogger(__name__)
-
-# Константы для кэширования
-CACHE_TIMEOUT = 60 * 5  
-FILE_LIST_CACHE_KEY = 'file_list_{user_id}_{page}_{page_size}'
-USER_LIST_CACHE_KEY = 'user_list_{page}_{page_size}'
 
 class StandardResultsSetPagination(PageNumberPagination):
     """Кастомная пагинация для API"""
@@ -68,45 +55,27 @@ class FileViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
     pagination_class = StandardResultsSetPagination
 
-    @method_decorator(cache_page(CACHE_TIMEOUT))
-    def list(self, request, *args, **kwargs):
-        """
-        Список файлов с кэшированием.
-        Кэш зависит от пользователя, страницы и размера страницы.
-        """
-        cache_key = FILE_LIST_CACHE_KEY.format(
-            user_id=request.user.id,
-            page=request.query_params.get('page', 1),
-            page_size=request.query_params.get('page_size', self.pagination_class.page_size)
-        )
-        
-        # Пытаемся получить данные из кэша
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return Response(cached_data)
-        
-        # Если в кэше нет, выполняем обычный запрос
-        response = super().list(request, *args, **kwargs)
-        
-        # Сохраняем ответ в кэш
-        cache.set(cache_key, response.data, CACHE_TIMEOUT)
-        return response
-
     def get_queryset(self):
-        """
-        Возвращает queryset файлов в зависимости от прав пользователя.
-        Администраторы видят все файлы, обычные пользователи — только свои.
-        """
-        queryset = super().get_queryset()
-        if not self.request.user.is_admin:
-            queryset = queryset.filter(owner=self.request.user)
-        return queryset
+        """Возвращает queryset файлов в зависимости от прав пользователя."""
+        queryset = super().get_queryset().filter(is_deleted=False)        
+        
+        owner_id = self.request.query_params.get('owner')
+        if owner_id:            
+            if self.request.user.is_admin:
+                queryset = queryset.filter(owner__id=owner_id)
+            else:                
+                if str(self.request.user.id) == owner_id:
+                    queryset = queryset.filter(owner__id=owner_id)
+                else:                    
+                    queryset = queryset.none()
+        else:            
+            if not self.request.user.is_admin:
+                queryset = queryset.filter(owner=self.request.user)
+        
+        return queryset    
 
     def perform_create(self, serializer):
-        """
-        Создание нового файла с проверкой квоты хранилища.
-        При создании файла инвалидируем кэш списка файлов для этого пользователя.
-        """
+        """Создание нового файла с проверкой квоты хранилища."""
         file_obj = self.request.FILES.get('file')
         if not file_obj:
             raise ValidationError({"file": "Файл не предоставлен."})
@@ -118,44 +87,15 @@ class FileViewSet(viewsets.ModelViewSet):
         
         serializer.save(owner=self.request.user)
         logger.info(f"User {self.request.user.username} uploaded file {file_obj.name}")
-        
-        # Инвалидация кэша списка файлов для этого пользователя
-        self._invalidate_file_list_cache(self.request.user.id)
 
     def perform_destroy(self, instance):
-        """Удаление файла с физическим удалением с диска"""
-        if instance.file and os.path.isfile(instance.file.path):
-            try:
-                os.remove(instance.file.path)
-                logger.info(f"Deleted physical file: {instance.file.path}")
-            except Exception as e:
-                logger.error(f"Error deleting file {instance.file.path}: {str(e)}")
-                raise ValidationError("Ошибка при удалении файла")
-        instance.delete()
-        logger.info(f"Deleted file record: {instance.original_name}")
-        
-        # Инвалидация кэша списка файлов для владельца файла
-        self._invalidate_file_list_cache(instance.owner.id)
-
-    def perform_update(self, serializer):
-        """Обновление файла с инвалидацией кэша"""
-        instance = serializer.instance
-        response = super().perform_update(serializer)
-        
-        # Инвалидация кэша списка файлов для владельца файла
-        self._invalidate_file_list_cache(instance.owner.id)
-        return response
-
-    def _invalidate_file_list_cache(self, user_id):
-        """Инвалидация кэша списка файлов для указанного пользователя"""
-        cache.delete_many([
-            FILE_LIST_CACHE_KEY.format(
-                user_id=user_id,
-                page=page,
-                page_size=self.pagination_class.page_size
-            )
-            for page in range(1, 10)  
-        ])
+        """Удаление файла с физическим удалением с диска."""
+        try:
+            instance.delete()
+            logger.info(f"Deleted file record: {instance.original_name}")
+        except Exception as e:
+            logger.error(f"Error in perform_destroy: {str(e)}")
+            raise ValidationError("Ошибка при удалении файла")
 
     @swagger_auto_schema(
         operation_description="Скачивание файла",
@@ -166,9 +106,7 @@ class FileViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
-        """
-        Скачивание файла с обновлением даты последнего скачивания.
-        """
+        """Скачивание файла с обновлением даты последнего скачивания."""
         file = self.get_object()
         file.last_download = timezone.now()
         file.save()
@@ -180,13 +118,12 @@ class FileViewSet(viewsets.ModelViewSet):
                 raise Http404("Файл не найден на сервере.")
             
             mime_type, _ = mimetypes.guess_type(file_path)
-            response = FileResponse(
+            return FileResponse(
                 open(file_path, 'rb'),
-                content_type=mime_type or 'application/octet-stream'
+                content_type=mime_type or 'application/octet-stream',
+                as_attachment=True,
+                filename=file.original_name
             )
-            response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
-            response['Content-Length'] = os.path.getsize(file_path)
-            return response
         except Exception as e:
             logger.error(f"Download error: {str(e)}")
             raise Http404(f"Ошибка при скачивании: {str(e)}")
@@ -214,22 +151,29 @@ class FileViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post', 'delete'])
     def share(self, request, pk=None):
-        """
-        Управление публичным доступом к файлу.
-        POST - создает публичную ссылку
-        DELETE - удаляет публичную ссылку
-        """
+        """Управление публичным доступом к файлу."""
         file = self.get_object()
 
-        if request.method == 'POST':
-            file.shared_link = uuid.uuid4().hex[:15]
+        if request.method == 'POST':           
+            link = uuid.uuid4().hex[:16]
+            while File.objects.filter(shared_link=link).exists():
+                link = uuid.uuid4().hex[:16]
+
+            file.shared_link = link
             file.is_public = True
             file.save()
-            return Response({'shared_link': file.shared_link}, status=status.HTTP_200_OK)
+            logger.info(f"Created shared link for file: {file.original_name} -> {link}")
+
+            full_url = request.build_absolute_uri(
+                f'/public/files/{file.shared_link}/'
+            )
+            return Response({'shared_link': full_url}, status=status.HTTP_200_OK)
+
         elif request.method == 'DELETE':
             file.shared_link = None
             file.is_public = False
             file.save()
+            logger.info(f"Removed shared link for file: {file.original_name}")
             return Response(status=status.HTTP_204_NO_CONTENT)
 
     @swagger_auto_schema(
@@ -253,7 +197,7 @@ class FileViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['patch'], url_path='rename')
     def rename(self, request, pk=None):
-        """Переименование файла"""
+        """Переименование файла."""
         file = self.get_object()
         new_name = request.data.get('new_name')
         
@@ -261,14 +205,23 @@ class FileViewSet(viewsets.ModelViewSet):
             return Response(
                 {'detail': 'Необходимо указать новое имя файла'},
                 status=status.HTTP_400_BAD_REQUEST
-            )
+            )        
         
+        old_name = file.original_name
         file.original_name = new_name
-        file.save()
-        return Response(
-            {'id': file.id, 'original_name': new_name},
-            status=status.HTTP_200_OK
-        )
+        
+        try:
+            file.save()  
+            return Response(
+                {'id': file.id, 'original_name': new_name},
+                status=status.HTTP_200_OK
+            )
+        except ValidationError as e:            
+            file.original_name = old_name
+            return Response(
+                {'detail': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class PublicFileDownloadView(APIView):
     """
@@ -277,7 +230,6 @@ class PublicFileDownloadView(APIView):
     """
     permission_classes = [AllowAny]
 
-    @method_decorator(cache_page(CACHE_TIMEOUT))
     @swagger_auto_schema(
         operation_description="Скачивание публичного файла",
         responses={
@@ -286,7 +238,7 @@ class PublicFileDownloadView(APIView):
         }
     )
     def get(self, request, shared_link):
-        """Скачивание файла по публичной ссылке"""
+        """Скачивание файла по публичной ссылке."""
         try:
             file = File.objects.get(shared_link=shared_link, is_public=True)
         except File.DoesNotExist:
@@ -299,14 +251,15 @@ class PublicFileDownloadView(APIView):
             file_path = file.file.path
             if not os.path.exists(file_path):
                 raise Http404("Файл не найден на сервере")
-            
+
             mime_type, _ = mimetypes.guess_type(file_path)
-            response = FileResponse(
-                open(file_path, 'rb'),
-                content_type=mime_type or 'application/octet-stream'
-            )
-            response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
-            return response
+            with open(file_path, 'rb') as f:
+                response = FileResponse(
+                    f,
+                    content_type=mime_type or 'application/octet-stream'
+                )
+                response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
+                return response
         except Exception as e:
             logger.error(f"Public download error: {str(e)}")
             raise Http404(f"Ошибка скачивания: {str(e)}")
@@ -327,7 +280,7 @@ class RegisterView(APIView):
         }
     )
     def post(self, request):
-        """Обработка регистрации"""
+        """Обработка регистрации."""
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -357,7 +310,7 @@ class LoginView(APIView):
         }
     )
     def post(self, request):
-        """Обработка входа"""
+        """Обработка входа."""
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -385,7 +338,7 @@ class LogoutView(APIView):
         }
     )
     def post(self, request):
-        """Обработка выхода"""
+        """Обработка выхода."""
         try:
             if hasattr(request, 'auth') and isinstance(request.auth, Token):
                 request.auth.delete()
@@ -411,62 +364,11 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminUser]
     pagination_class = StandardResultsSetPagination
 
-    @method_decorator(cache_page(CACHE_TIMEOUT))
-    def list(self, request, *args, **kwargs):
-        """
-        Список пользователей с кэшированием.
-        Кэш зависит от страницы и размера страницы.
-        """
-        cache_key = USER_LIST_CACHE_KEY.format(
-            page=request.query_params.get('page', 1),
-            page_size=request.query_params.get('page_size', self.pagination_class.page_size)
-        )
-        
-        # Пытаемся получить данные из кэша
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return Response(cached_data)
-        
-        # Если в кэше нет, выполняем обычный запрос
-        response = super().list(request, *args, **kwargs)
-        
-        # Сохраняем ответ в кэш
-        cache.set(cache_key, response.data, CACHE_TIMEOUT)
-        return response
-
     def get_queryset(self):
-        """Ограничение queryset в зависимости от прав"""
+        """Ограничение queryset в зависимости от прав."""
         if self.request.user.is_admin:
             return User.objects.all()
         return User.objects.filter(id=self.request.user.id)
-
-    def perform_create(self, serializer):
-        """Создание пользователя с инвалидацией кэша"""
-        response = super().perform_create(serializer)
-        self._invalidate_user_list_cache()
-        return response
-
-    def perform_destroy(self, instance):
-        """Удаление пользователя с инвалидацией кэша"""
-        response = super().perform_destroy(instance)
-        self._invalidate_user_list_cache()
-        return response
-
-    def perform_update(self, serializer):
-        """Обновление пользователя с инвалидацией кэша"""
-        response = super().perform_update(serializer)
-        self._invalidate_user_list_cache()
-        return response
-
-    def _invalidate_user_list_cache(self):
-        """Инвалидация кэша списка пользователей"""
-        cache.delete_many([
-            USER_LIST_CACHE_KEY.format(
-                page=page,
-                page_size=self.pagination_class.page_size
-            )
-            for page in range(1, 10)  
-        ])
 
     @swagger_auto_schema(
         operation_description="Получение данных текущего пользователя",
@@ -477,12 +379,12 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'])
     def me(self, request):
-        """Получение данных текущего пользователя"""
+        """Получение данных текущего пользователя."""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        """Запрет на удаление собственной учетной записи"""
+        """Запрет на удаление собственной учетной записи."""
         instance = self.get_object()
         if instance == request.user:
             return Response(

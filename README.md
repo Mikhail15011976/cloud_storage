@@ -116,11 +116,14 @@
 ### 5. Настройка фронтенда
     cd ../frontend
 
-    # Установка зависимостей
-    npm install
+    # Установка yarn
+    npm install -g yarn
+
+    # Установка зависимостей через Yarn
+    yarn install
 
     # Сборка проекта для продакшена
-    npm run build
+    yarn build
 
 ### 6. Настройка gunicorn
 #### Создайте systemd-сервис для запуска Gunicorn:
@@ -241,8 +244,8 @@
 
     # Фронтенд
     cd ../frontend
-    npm install
-    npm run build
+    yarn install
+    yarn build
     sudo systemctl restart nginx   
 
 ### 13. Резервное копирование и восстановление

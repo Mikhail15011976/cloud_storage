@@ -2,10 +2,8 @@ from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
-from django.db.models import Count
 from .models import File, User
 from .validators import PasswordValidator
-
 
 class FileSerializer(serializers.ModelSerializer):
     """Сериализатор для модели File"""
@@ -18,11 +16,11 @@ class FileSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'owner', 'original_name', 'file', 'size', 'human_readable_size',
             'upload_date', 'last_download', 'comment', 'shared_link',
-            'is_public', 'file_type'
+            'is_public', 'file_type', 'is_deleted'
         )
         read_only_fields = (
             'id', 'owner', 'size', 'human_readable_size', 'upload_date',
-            'last_download', 'file_type', 'shared_link'
+            'last_download', 'file_type', 'shared_link', 'is_deleted'
         )
 
     def create(self, validated_data):

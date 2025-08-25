@@ -23,9 +23,6 @@ auth_urlpatterns = [
 
 # Основные URL-паттерны приложения
 urlpatterns = [
-    path('auth/', include(auth_urlpatterns)),  
-    path('public/files/<str:shared_link>/', 
-         PublicFileDownloadView.as_view(), 
-         name='public-file-download'),  
+    path('auth/', include(auth_urlpatterns)),      
     path('', include(router.urls)),  
 ]

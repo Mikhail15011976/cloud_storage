@@ -170,10 +170,10 @@ class GroupAdmin(BaseGroupAdmin):
 # Админка для модели File
 @admin.register(File)
 class FileAdmin(admin.ModelAdmin):
-    list_display = ('original_name', 'owner', 'size', 'upload_date', 'file_type')
-    list_filter = ('file_type', 'upload_date', 'owner')
-    search_fields = ('original_name', 'comment')
-    readonly_fields = ('upload_date', 'size', 'file_type')
+    list_display = ('original_name', 'owner', 'size', 'upload_date', 'file_type', 'shared_link', 'is_public')
+    list_filter = ('file_type', 'upload_date', 'owner', 'is_public')
+    search_fields = ('original_name', 'comment', 'shared_link')
+    readonly_fields = ('upload_date', 'size', 'file_type', 'shared_link')
 
     def has_delete_permission(self, request, obj=None):
         # Можно настроить права на удаление файлов, если нужно

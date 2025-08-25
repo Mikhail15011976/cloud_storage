@@ -6,6 +6,9 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from django.contrib.auth.views import LogoutView as DjangoLogoutView
+from django.http import HttpResponse
+
+from accounts.views import PublicFileDownloadView
 
 # Настройки Swagger/OpenAPI
 schema_view = get_schema_view(
@@ -21,10 +24,30 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
+# Обработчик для главной страницы
+def home(request):
+    return HttpResponse("""
+        <h1>Welcome to Cloud Storage API</h1>
+        <p>Available endpoints:</p>
+        <ul>
+            <li><a href="/api/">API Root</a></li>
+            <li><a href="/swagger/">Swagger UI</a></li>
+            <li><a href="/redoc/">ReDoc UI</a></li>
+            <li><a href="/admin/">Admin Panel</a></li>
+            <li><a href="/public/files/">Public Files (example)</a></li>
+        </ul>
+    """)
+
 # Основные URL-паттерны
 urlpatterns = [
+    # Главная страница
+    path('', home, name='home'),
+
     # Админ-панель Django
     path('admin/', admin.site.urls),
+    
+    # Публичный доступ к файлам (добавляем этот URL)
+    path('public/files/<str:shared_link>/', PublicFileDownloadView.as_view(), name='public-file-download'),
     
     # Документация API
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', 
@@ -43,6 +66,7 @@ urlpatterns = [
     # Стандартные URL для аутентификации DRF
     path('api/auth/', include('rest_framework.urls', namespace='rest_framework')),
 
+    # URL для выхода из аккаунта
     path('accounts/logout/', DjangoLogoutView.as_view(next_page='/swagger/'), name='django-logout'),
 ]
 
@@ -58,20 +82,3 @@ if settings.DEBUG:
         ] + urlpatterns
     except ImportError:
         pass
-
-# Обработчик для главной страницы
-def home(request):
-    from django.http import HttpResponse
-    return HttpResponse("""
-        <h1>Welcome to Cloud Storage API</h1>
-        <p>Available endpoints:</p>
-        <ul>
-            <li><a href="/api/">API Root</a></li>
-            <li><a href="/swagger/">Swagger UI</a></li>
-            <li><a href="/redoc/">ReDoc UI</a></li>
-            <li><a href="/admin/">Admin Panel</a></li>
-        </ul>
-    """)
-
-# Добавление главной страницы в начало URL-паттернов
-urlpatterns = [path('', home, name='home')] + urlpatterns
