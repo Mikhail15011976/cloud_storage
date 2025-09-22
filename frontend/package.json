@@ -25,10 +25,23 @@
     "webpack-dev-server": "^5.2.2"
   },
   "scripts": {
-    "start": "react-scripts start --host 192.168.1.127",
+    "start": "react-scripts start --host 0.0.0.0",
     "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "build:large": "node --max_old_space_size=4096 node_modules/.bin/react-scripts build",
+    "build:prod": "set GENERATE_SOURCEMAP=false && react-scripts build",
+    "build:analyze": "yarn build && npx serve -s build",
+    "test": "react-scripts test --watchAll=false",
+    "eject": "react-scripts eject",
+    "memory-check": "node scripts/memory-test.js",
+    "prebuild": "yarn run memory-check",
+    "security-check": "npx audit-ci --moderate",
+    "clean": "rimraf build node_modules/.cache",
+    "clean:install": "yarn clean && yarn install",
+    "clean:win": "rd /s /q build && rd /s /q node_modules\\.cache",
+    "reset": "yarn clean:win && yarn install"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1"
   },
   "eslintConfig": {
     "extends": [

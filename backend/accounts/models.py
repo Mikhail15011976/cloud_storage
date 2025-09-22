@@ -338,18 +338,7 @@ class File(models.Model):
                     _('Файл превышает квоту хранилища. Доступно: %(available)s байт') % {
                         'available': self.owner.storage_left
                     }
-                )
-
-    def save(self, *args, **kwargs):
-        """Переопределение метода сохранения"""        
-        if not self.is_deleted:
-            self._set_original_name()
-            self._determine_file_type()
-            self._calculate_file_size()
-            self._generate_shared_link()
-
-        self.full_clean()
-        super().save(*args, **kwargs)
+                )    
 
     def _set_original_name(self):
         """Установка оригинального имени файла"""
@@ -429,9 +418,15 @@ class File(models.Model):
             except (FileNotFoundError, OSError) as e:
                 logger.error(f"Error renaming file: {str(e)}")
                 raise ValidationError(_("Ошибка при переименовании файла"))
-            
+
     def save(self, *args, **kwargs):
-        """Переопределение метода сохранения"""        
+        """Переопределение метода сохранения с объединенной логикой"""
+        if not self.is_deleted:
+            self._set_original_name()
+            self._determine_file_type()
+            self._calculate_file_size()
+            self._generate_shared_link()
+    
         if self.pk and not self.is_deleted:
             try:
                 old_file = File.objects.get(pk=self.pk)
@@ -439,8 +434,9 @@ class File(models.Model):
                     self.rename_physical_file(self.original_name)
             except File.DoesNotExist:
                 pass
-        
-        super().save(*args, **kwargs)        
+
+        self.full_clean()
+        super().save(*args, **kwargs)    
 
     def _get_file_type(self):
         """Определение типа файла на основе расширения"""
