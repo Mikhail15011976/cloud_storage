@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Container, 
   Typography, 
@@ -8,7 +8,6 @@ import {
   Stack,
   Pagination,
   Alert,
-  Snackbar,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import UploadIcon from '@mui/icons-material/Upload';
@@ -18,8 +17,6 @@ import { CommentDialog } from '../components/files/CommentDialog';
 import api from '../services/api';
 
 const Dashboard = () => {
-  console.log('Dashboard rendered');
-
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,10 +32,10 @@ const Dashboard = () => {
   const [deleteLoading, setDeleteLoading] = useState({});
 
   const { enqueueSnackbar } = useSnackbar();
-
-  // Стабильная функция загрузки файлов с использованием useCallback
+  const abortControllerRef = useRef(null);
+  const isMountedRef = useRef(true);
+  
   const fetchFiles = useCallback(async (signal) => {
-    console.log('Fetching files...');
     try {
       setLoading(true);
       setError(null);
@@ -51,10 +48,7 @@ const Dashboard = () => {
         signal,
       });
       
-      console.log('Received files:', response.data);
-
-      // Проверяем, не был ли запрос отменен
-      if (!signal.aborted) {
+      if (!signal.aborted && isMountedRef.current) {
         const filesData = response.data.results || response.data || [];
         const totalCount = response.data.count || filesData.length;
         
@@ -65,41 +59,41 @@ const Dashboard = () => {
           totalPages: Math.ceil(totalCount / prev.pageSize),
         }));
       }
-    } catch (error) {
-      // Игнорируем ошибки отмененных запросов
-      if (error.name === 'CanceledError' || error.name === 'AbortError') {
-        console.log('Fetch cancelled');
+    } catch (error) {      
+      if (error.name === 'CanceledError' || error.name === 'AbortError' || !isMountedRef.current) {
         return;
       }
       
-      console.error('Error fetching files:', error);
-      
-      if (!signal.aborted) {
-        const errorMessage = error.response?.data?.detail || 'Ошибка при загрузке файлов';
-        setError(errorMessage);
-        enqueueSnackbar(errorMessage, { variant: 'error' });
-      }
+      const errorMessage = error.response?.data?.detail || 'Ошибка при загрузке файлов';
+      setError(errorMessage);
+      enqueueSnackbar(errorMessage, { variant: 'error' });
     } finally {
-      if (!signal.aborted) {
+      if (!signal.aborted && isMountedRef.current) {
         setLoading(false);
       }
     }
   }, [pagination.page, pagination.pageSize, enqueueSnackbar]);
-
-  // useEffect с правильной очисткой
+  
   useEffect(() => {
-    const controller = new AbortController();
+    isMountedRef.current = true;
     
-    fetchFiles(controller.signal);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     
-    // Функция очистки при размонтировании компонента
+    abortControllerRef.current = new AbortController();
+    
+    fetchFiles(abortControllerRef.current.signal);    
+    
     return () => {
-      controller.abort();
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [fetchFiles]);
 
   const handlePageChange = (event, newPage) => {
-    console.log('Page changed:', newPage);
     setPagination(prev => ({
       ...prev,
       page: newPage,
@@ -107,38 +101,43 @@ const Dashboard = () => {
   };
 
   const handleDelete = async (id) => {
-    console.log('Deleting file:', id);
+    if (!isMountedRef.current) return;
     
     setDeleteLoading(prev => ({ ...prev, [id]: true }));
     
     try {
-      await api.delete(`/files/${id}/`);
+      await api.delete(`/files/${id}/`);      
       
-      // Оптимистичное обновление UI
-      setFiles(prev => prev.filter(file => file.id !== id));
-      setPagination(prev => ({
-        ...prev,
-        totalCount: Math.max(prev.totalCount - 1, 0),
-        totalPages: Math.max(Math.ceil((Math.max(prev.totalCount - 1, 0)) / prev.pageSize), 1),
-      }));
-      
-      enqueueSnackbar('Файл успешно удален', { variant: 'success' });
+      if (isMountedRef.current) {
+        setFiles(prev => prev.filter(file => file.id !== id));
+        setPagination(prev => ({
+          ...prev,
+          totalCount: Math.max(prev.totalCount - 1, 0),
+          totalPages: Math.max(Math.ceil((Math.max(prev.totalCount - 1, 0)) / prev.pageSize), 1),
+        }));
+        
+        enqueueSnackbar('Файл успешно удален', { variant: 'success' });
+      }
     } catch (error) {
-      console.error('Error deleting file:', error);
+      if (!isMountedRef.current) return;
       
-      // Откатываем оптимистичное обновление в случае ошибки
-      const controller = new AbortController();
-      fetchFiles(controller.signal);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      fetchFiles(abortControllerRef.current.signal);
       
       const errorMessage = error.response?.data?.detail || 'Ошибка при удалении файла';
       enqueueSnackbar(errorMessage, { variant: 'error' });
     } finally {
-      setDeleteLoading(prev => ({ ...prev, [id]: false }));
+      if (isMountedRef.current) {
+        setDeleteLoading(prev => ({ ...prev, [id]: false }));
+      }
     }
   };
 
   const handleDownload = async (id) => {
-    console.log('Downloading file:', id);
+    if (!isMountedRef.current) return;
     
     let blobUrl = null;
     
@@ -177,18 +176,18 @@ const Dashboard = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      if (isMountedRef.current) {
+        setFiles(prev => prev.map(file => 
+          file.id === id ? { ...file, last_download: new Date().toISOString() } : file
+        ));
 
-      // Обновляем дату последнего скачивания
-      setFiles(prev => prev.map(file => 
-        file.id === id ? { ...file, last_download: new Date().toISOString() } : file
-      ));
-
-      enqueueSnackbar(`Файл "${fileName}" успешно скачан`, { variant: 'success' });
+        enqueueSnackbar(`Файл "${fileName}" успешно скачан`, { variant: 'success' });
+      }
     } catch (error) {
-      console.error('Error downloading file:', error);
+      if (!isMountedRef.current) return;
       enqueueSnackbar('Ошибка при скачивании файла', { variant: 'error' });
-    } finally {
-      // Всегда освобождаем URL объекта для предотвращения утечек памяти
+    } finally {      
       if (blobUrl) {
         setTimeout(() => {
           window.URL.revokeObjectURL(blobUrl);
@@ -196,15 +195,13 @@ const Dashboard = () => {
       }
     }
   };
-
-  // Функция для копирования в буфер обмена с обработкой ошибок
+  
   const copyToClipboard = async (text) => {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
         return true;
-      } else {
-        // Fallback для старых браузеров
+      } else {        
         const textArea = document.createElement('textarea');
         textArea.value = text;
         textArea.style.position = 'fixed';
@@ -218,13 +215,12 @@ const Dashboard = () => {
         return successful;
       }
     } catch (err) {
-      console.error('Failed to copy text: ', err);
       return false;
     }
   };
 
   const handleShare = async (id) => {
-    console.log('Sharing file:', id);
+    if (!isMountedRef.current) return;
     
     setShareLoading(prev => ({ ...prev, [id]: true }));
     
@@ -234,22 +230,26 @@ const Dashboard = () => {
 
       const success = await copyToClipboard(sharedLink);
       
-      if (success) {
-        enqueueSnackbar('Ссылка для общего доступа скопирована в буфер обмена', { 
-          variant: 'success' 
-        });
-      } else {
-        enqueueSnackbar(`Скопируйте ссылку вручную: ${sharedLink}`, { 
-          variant: 'info',
-          autoHideDuration: 10000 
-        });
+      if (isMountedRef.current) {
+        if (success) {
+          enqueueSnackbar('Ссылка для общего доступа скопирована в буфер обмена', { 
+            variant: 'success' 
+          });
+        } else {
+          enqueueSnackbar(`Скопируйте ссылку вручную: ${sharedLink}`, { 
+            variant: 'info',
+            autoHideDuration: 10000 
+          });
+        }
       }
     } catch (error) {
-      console.error('Error sharing file:', error);
+      if (!isMountedRef.current) return;
       const errorMessage = error.response?.data?.detail || 'Ошибка при создании ссылки для общего доступа';
       enqueueSnackbar(errorMessage, { variant: 'error' });
     } finally {
-      setShareLoading(prev => ({ ...prev, [id]: false }));
+      if (isMountedRef.current) {
+        setShareLoading(prev => ({ ...prev, [id]: false }));
+      }
     }
   };
 
@@ -262,17 +262,21 @@ const Dashboard = () => {
   };
 
   const handleRenameSave = async (id, newName) => {
+    if (!isMountedRef.current) return;
+    
     try {
       await api.patch(`/files/${id}/rename/`, { new_name: newName });
       
-      setFiles(prev => prev.map(file => 
-        file.id === id ? { ...file, original_name: newName } : file
-      ));
-      
-      enqueueSnackbar('Файл успешно переименован', { variant: 'success' });
-      handleRenameClose();
+      if (isMountedRef.current) {
+        setFiles(prev => prev.map(file => 
+          file.id === id ? { ...file, original_name: newName } : file
+        ));
+        
+        enqueueSnackbar('Файл успешно переименован', { variant: 'success' });
+        handleRenameClose();
+      }
     } catch (error) {
-      console.error('Error renaming file:', error);
+      if (!isMountedRef.current) return;
       const errorMessage = error.response?.data?.detail || 'Ошибка при переименовании файла';
       enqueueSnackbar(errorMessage, { variant: 'error' });
     }
@@ -287,57 +291,57 @@ const Dashboard = () => {
   };
 
   const handleCommentSave = async (id, newComment) => {
+    if (!isMountedRef.current) return;
+    
     try {
       await api.patch(`/files/${id}/`, { comment: newComment });
       
-      setFiles(prev => prev.map(file => 
-        file.id === id ? { ...file, comment: newComment } : file
-      ));
-      
-      enqueueSnackbar('Комментарий обновлен', { variant: 'success' });
-      handleCommentClose();
+      if (isMountedRef.current) {
+        setFiles(prev => prev.map(file => 
+          file.id === id ? { ...file, comment: newComment } : file
+        ));
+        
+        enqueueSnackbar('Комментарий обновлен', { variant: 'success' });
+        handleCommentClose();
+      }
     } catch (error) {
-      console.error('Error updating comment:', error);
+      if (!isMountedRef.current) return;
       const errorMessage = error.response?.data?.detail || 'Ошибка при обновлении комментария';
       enqueueSnackbar(errorMessage, { variant: 'error' });
     }
   };
 
-  const handleView = (id) => {
-    console.log('Viewing file:', id);
-    try {
-      const file = files.find(f => f.id === id);
-      if (file) {
-        window.open(`/files/${id}/download/`, '_blank');
-        enqueueSnackbar('Файл открыт для просмотра', { variant: 'success' });
-      }
-    } catch (error) {
-      console.error('Error viewing file:', error);
-      enqueueSnackbar('Ошибка при открытии файла для просмотра', { variant: 'error' });
-    }
-  };
-
   const handleUploadSuccess = () => {
-    console.log('File upload successful, refreshing list...');
+    if (!isMountedRef.current) return;
     
-    // Сбрасываем на первую страницу и обновляем список
     setPagination(prev => ({ ...prev, page: 1 }));
     
-    const controller = new AbortController();
-    fetchFiles(controller.signal);
-    
-    return () => controller.abort();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    fetchFiles(abortControllerRef.current.signal);
   };
-
-  // Функция для повторной загрузки файлов
+  
   const handleRetry = () => {
-    const controller = new AbortController();
-    fetchFiles(controller.signal);
+    if (!isMountedRef.current) return;
     
-    return () => controller.abort();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    fetchFiles(abortControllerRef.current.signal);
   };
-
-  // Отображение загрузки
+  
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+  
   if (loading && files.length === 0) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -361,7 +365,6 @@ const Dashboard = () => {
               }}
             />
             
-            {/* Статистика */}
             <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
               <Typography variant="h6" gutterBottom>
                 Статистика
@@ -414,7 +417,6 @@ const Dashboard = () => {
                 onShare={handleShare}
                 onRename={handleRenameOpen}
                 onCommentUpdate={handleCommentOpen}
-                onView={handleView}
                 shareLoading={shareLoading}
                 deleteLoading={deleteLoading}
               />
@@ -436,7 +438,6 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* Диалог переименования */}
       <RenameDialog
         open={renameDialog.open}
         onClose={handleRenameClose}
@@ -444,22 +445,17 @@ const Dashboard = () => {
         onRename={handleRenameSave}
       />
 
-      {/* Диалог комментария */}
       <CommentDialog
         open={commentDialog.open}
         onClose={handleCommentClose}
         file={commentDialog.file}
         onCommentUpdate={handleCommentSave}
       />
-
-      {/* Снекбар для уведомлений */}
-      <Snackbar />
     </Container>
   );
 };
 
-// Компонент Button для исправления ошибки в коде
-const Button = ({ color = 'inherit', size = 'small', onClick, children, ...props }) => {
+const Button = React.memo(({ color = 'inherit', size = 'small', onClick, children, ...props }) => {
   return (
     <button 
       style={{ 
@@ -476,6 +472,6 @@ const Button = ({ color = 'inherit', size = 'small', onClick, children, ...props
       {children}
     </button>
   );
-};
+});
 
-export default Dashboard;
+export default React.memo(Dashboard);

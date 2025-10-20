@@ -54,17 +54,33 @@ export const {
 
 export const login = (credentials) => async (dispatch) => {
   try {
-    dispatch(loginStart());
+    dispatch(loginStart());    
+    
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
     const response = await api.post('/auth/login/', credentials);
     const { user, token } = response.data;
     
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    
-    dispatch(loginSuccess({ user, token }));
-    return { success: true };
+    if (token && user) {      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));      
+      
+      dispatch(loginSuccess({ user, token }));      
+      
+      return { 
+        success: true, 
+        user,
+        isAdmin: user.is_admin 
+      };
+    } else {
+      throw new Error('Invalid response from server');
+    }
   } catch (error) {
-    const message = error.response?.data?.detail || 'Login failed';
+    const message = error.response?.data?.detail || 
+                   error.response?.data?.non_field_errors?.[0] || 
+                   'Login failed';
+    
     dispatch(loginFailure(message));
     return { success: false, error: message };
   }

@@ -150,8 +150,28 @@ except ImportError:
     pass
 
 # Настройки CORS
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS').split(',')
-CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS') == 'True'
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://192.168.1.170:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.1.127:8000",
+    "http://192.168.0.93:3000",
+    "http://192.168.0.93:8000",
+    "http://192.168.1.127:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Международные настройки
 LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE')

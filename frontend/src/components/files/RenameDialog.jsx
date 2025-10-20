@@ -17,17 +17,17 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { enqueueSnackbar } = useSnackbar();
-
-  // Сбрасываем состояние при открытии/закрытии диалога
+  
   useEffect(() => {
-    if (open && file) {
-      setNewName(file.original_name || '');
+    if (open && file) {      
+      const fileNameWithoutExt = file.original_name ? 
+        file.original_name.replace(/\.[^/.]+$/, "") : '';
+      setNewName(fileNameWithoutExt);
       setError('');
       setLoading(false);
     }
   }, [open, file]);
-
-  // Обработчик отправки формы с защитой от утечек
+  
   const handleSubmit = useCallback(async () => {
     if (!file || !file.id) {
       setError('Файл не выбран');
@@ -39,9 +39,14 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
       setError('Имя файла не может быть пустым');
       return;
     }
-
-    // Проверка на идентичность имени
-    if (trimmedName === file.original_name) {
+    
+    const originalFileName = file.original_name || '';
+    const fileExtension = originalFileName.includes('.') ? 
+      originalFileName.substring(originalFileName.lastIndexOf('.')) : '';
+    
+    const fullFileName = trimmedName + fileExtension;
+    
+    if (fullFileName === file.original_name) {
       onClose();
       return;
     }
@@ -53,14 +58,14 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
     try {
       console.log("File ID:", file.id);
       console.log("Rename request URL:", `/files/${file.id}/rename/`);
-      console.log("Rename request body:", { new_name: trimmedName });
+      console.log("Rename request body:", { new_name: fullFileName });
 
       await api.patch(`/files/${file.id}/rename/`, { 
-        new_name: trimmedName 
+        new_name: fullFileName 
       });
 
       if (isMounted) {
-        onRename(file.id, trimmedName);
+        onRename(file.id, fullFileName);
         enqueueSnackbar('Файл успешно переименован', { 
           variant: 'success',
           autoHideDuration: 3000 
@@ -89,8 +94,7 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
       isMounted = false;
     };
   }, [file, newName, onRename, onClose, enqueueSnackbar]);
-
-  // Обработчик нажатия клавиш с защитой
+  
   const handleKeyPress = useCallback((event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -106,8 +110,7 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
       }
     }
   }, [loading, newName, handleSubmit, onClose]);
-
-  // Устанавливаем обработчик клавиш только когда диалог открыт
+  
   useEffect(() => {
     if (open) {
       document.addEventListener('keydown', handleKeyPress);
@@ -117,8 +120,7 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
       };
     }
   }, [open, handleKeyPress]);
-
-  // Валидация имени файла в реальном времени
+  
   const validateFileName = (name) => {
     const trimmed = name.trim();
     
@@ -128,9 +130,8 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
     
     if (trimmed.length > 255) {
       return 'Имя файла слишком длинное (макс. 255 символов)';
-    }
+    }    
     
-    // Проверка на запрещенные символы (базовая валидация)
     const invalidChars = /[<>:"/\\|?*]/;
     if (invalidChars.test(trimmed)) {
       return 'Имя файла содержит запрещенные символы';
@@ -142,8 +143,7 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
   const handleNameChange = (e) => {
     const value = e.target.value;
     setNewName(value);
-    
-    // Валидация в реальном времени только после начала ввода
+        
     if (value.trim()) {
       const validationError = validateFileName(value);
       setError(validationError);
@@ -157,11 +157,14 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
       onClose();
     }
   };
-
-  // Если файл не передан, не рендерим диалог
+  
   if (!file) {
     return null;
   }
+  
+  const originalFileName = file.original_name || '';
+  const fileExtension = originalFileName.includes('.') ? 
+    originalFileName.substring(originalFileName.lastIndexOf('.')) : '';
 
   return (
     <Dialog 
@@ -193,7 +196,7 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
             value={newName}
             onChange={handleNameChange}
             error={!!error}
-            helperText={error || ' '} // Пустой helperText для сохранения места
+            helperText={error || ' '} 
             disabled={loading}
             inputProps={{
               maxLength: 255,
@@ -203,7 +206,9 @@ export const RenameDialog = ({ open, onClose, file, onRename }) => {
         </Box>
         
         <Box sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 1 }}>
-          Текущее имя: {file.original_name}
+          <div>Текущее имя: {file.original_name}</div>
+          <div>Расширение файла: {fileExtension || 'нет'}</div>
+          <div>Полное имя после переименования: {newName.trim()}{fileExtension}</div>
         </Box>
       </DialogContent>
       

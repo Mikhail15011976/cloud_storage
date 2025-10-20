@@ -15,7 +15,6 @@ import NotFound from './pages/NotFound';
 import { CircularProgress, Box, Backdrop, Typography, Button } from '@mui/material';
 import { SnackbarProvider } from 'notistack';
 
-// Компонент для маршрутизации и загрузки данных приложения
 const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
@@ -23,52 +22,40 @@ const AppContent = () => {
   const isMountedRef = useRef(true);
   const initializationRef = useRef(false);
   const sessionCheckRef = useRef(null);
-
-  // Функция проверки валидности сессии
+  
   const checkSessionValidity = useCallback(() => {
     if (!isAuthenticated || !isMountedRef.current) return false;
 
-    try {
-      // Проверяем время последней активности (простая реализация)
+    try {      
       const lastActivity = localStorage.getItem('lastActivity');
       if (lastActivity) {
-        const timeDiff = Date.now() - parseInt(lastActivity);
-        // Сессия истекает через 24 часа
+        const timeDiff = Date.now() - parseInt(lastActivity);        
         if (timeDiff > 24 * 60 * 60 * 1000) {
           dispatch(logoutUser());
           return false;
         }
-      }
+      }      
       
-      // Обновляем время последней активности
       localStorage.setItem('lastActivity', Date.now().toString());
       return true;
     } catch (error) {
-      console.error('Session check error:', error);
-      return true; // В случае ошибки считаем сессию валидной
+      return true; 
     }
   }, [dispatch, isAuthenticated]);
-
-  // Функция инициализации приложения с защитой от утечек
+  
   const initializeApp = useCallback(async () => {
     if (initializationRef.current || !isMountedRef.current) return;
     initializationRef.current = true;
 
-    try {
-      console.log('Initializing app...');
+    try {      
+      dispatch(loadUserFromStorage());      
       
-      // Загружаем пользователя из хранилища
-      dispatch(loadUserFromStorage());
+      await new Promise(resolve => setTimeout(resolve, 100));      
       
-      // Даем время для загрузки состояния
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Проверяем валидность сессии
       if (isMountedRef.current && isAuthenticated) {
         const isValid = checkSessionValidity();
         
-        if (isValid && isMountedRef.current) {
-          // Загружаем файлы только если сессия валидна
+        if (isValid && isMountedRef.current) {          
           dispatch(loadFilesFromStorage());
         }
       }
@@ -80,34 +67,30 @@ const AppContent = () => {
       }
     }
   }, [dispatch, isAuthenticated, checkSessionValidity]);
-
-  // Эффект для инициализации приложения
+  
   useEffect(() => {
     isMountedRef.current = true;
 
     initializeApp();
-
-    // Функция очистки при размонтировании
+    
     return () => {
       isMountedRef.current = false;
       initializationRef.current = false;
       
       if (sessionCheckRef.current) {
         clearInterval(sessionCheckRef.current);
+        sessionCheckRef.current = null;
       }
     };
   }, [initializeApp]);
-
-  // Эффект для периодической проверки сессии
+  
   useEffect(() => {
     if (!isAuthenticated || !isMountedRef.current) return;
-
-    // Очищаем предыдущий интервал
+    
     if (sessionCheckRef.current) {
       clearInterval(sessionCheckRef.current);
     }
-
-    // Устанавливаем новый интервал проверки (каждые 5 минут)
+    
     sessionCheckRef.current = setInterval(() => {
       if (isMountedRef.current) {
         checkSessionValidity();
@@ -121,31 +104,34 @@ const AppContent = () => {
       }
     };
   }, [isAuthenticated, checkSessionValidity]);
-
-  // Эффект для обновления времени активности при взаимодействии с приложением
+  
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const updateActivity = () => {
       localStorage.setItem('lastActivity', Date.now().toString());
     };
-
-    // Обновляем активность при событиях пользователя
+    
     const events = ['click', 'keypress', 'scroll', 'mousemove'];
-    events.forEach(event => {
-      window.addEventListener(event, updateActivity, { passive: true });
+    
+    const eventHandlers = events.map(event => ({
+      event,
+      handler: updateActivity
+    }));
+    
+    eventHandlers.forEach(({ event, handler }) => {
+      window.addEventListener(event, handler, { passive: true });
     });
 
     return () => {
-      events.forEach(event => {
-        window.removeEventListener(event, updateActivity);
+      eventHandlers.forEach(({ event, handler }) => {
+        window.removeEventListener(event, handler);
       });
     };
   }, [isAuthenticated]);
-
-  // Функция для защищенного роутинга
-  const ProtectedRoute = ({ children, adminOnly = false }) => {
-    if (!isMountedRef.current) {
+  
+  const ProtectedRoute = React.memo(({ children, adminOnly = false }) => {
+    if (loading) {
       return (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
           <CircularProgress />
@@ -162,11 +148,10 @@ const AppContent = () => {
     }
 
     return children;
-  };
+  });
 
-  // Функция для публичных роутов (только для неаутентифицированных)
-  const PublicRoute = ({ children }) => {
-    if (!isMountedRef.current) {
+  const PublicRoute = React.memo(({ children }) => {
+    if (loading) {
       return (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
           <CircularProgress />
@@ -174,14 +159,13 @@ const AppContent = () => {
       );
     }
 
-    if (isAuthenticated) {
+    if (isAuthenticated) {    
       return <Navigate to={user?.is_admin ? "/admin" : "/dashboard"} replace />;
     }
 
     return children;
-  };
-
-  // Отображение загрузки
+  });
+  
   if (loading) {
     return (
       <Backdrop
@@ -213,10 +197,8 @@ const AppContent = () => {
       <Header />
       <Box component="main" sx={{ flexGrow: 1, minHeight: 'calc(100vh - 64px)' }}>
         <Routes>
-          {/* Публичный маршрут */}
           <Route path="/" element={<Home />} />
           
-          {/* Публичные маршруты (только для неаутентифицированных) */}
           <Route 
             path="/login" 
             element={
@@ -234,7 +216,6 @@ const AppContent = () => {
             } 
           />
           
-          {/* Защищенные маршруты */}
           <Route 
             path="/dashboard" 
             element={
@@ -244,7 +225,6 @@ const AppContent = () => {
             } 
           />
           
-          {/* Маршруты только для администраторов */}
           <Route 
             path="/admin" 
             element={
@@ -262,7 +242,6 @@ const AppContent = () => {
             } 
           />
           
-          {/* Маршрут для несуществующих страниц */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Box>
@@ -270,7 +249,6 @@ const AppContent = () => {
   );
 };
 
-// Компонент обработки ошибок приложения
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -324,7 +302,6 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// Основной компонент приложения
 const App = () => {
   return (
     <ErrorBoundary>
@@ -347,4 +324,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default React.memo(App);

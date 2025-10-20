@@ -4,32 +4,36 @@ import { logoutUser } from '../store/slices/authSlice';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL,
-  withCredentials: true, 
+  withCredentials: true,
 });
 
+const getToken = () => {
+  return localStorage.getItem('token');
+};
+
 api.interceptors.request.use((config) => {
-  const token = store.getState().auth.token; 
-  const csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+  const token = getToken();
   
   if (token) {
     config.headers.Authorization = `Token ${token}`;
-  }
+  }  
   
+  const csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
   if (csrfToken) {
     config.headers['X-CSRFToken'] = csrfToken.split('=')[1];
   }
 
-  return config; 
+  return config;
 });
 
 api.interceptors.response.use(
-  (response) => response, 
-  (error) => {    
-    if (error.response?.status === 401) {
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {      
       store.dispatch(logoutUser());
     }
-    return Promise.reject(error); 
+    return Promise.reject(error);
   }
 );
 
-export default api; 
+export default api;

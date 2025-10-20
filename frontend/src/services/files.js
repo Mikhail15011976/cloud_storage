@@ -1,14 +1,22 @@
 import api from './api';
 
-export const getFiles = async () => {
+export const getFiles = async (ownerId = null) => {
   try {
-    const response = await api.get('/files/');
-    // Если API возвращает объект с пагинацией, например { results: [...] }, 
-    // то нужно вернуть response.data.results
-    // return response.data.results;
-
-    // Если возвращается просто массив файлов — возвращаем response.data
-    return response.data;
+    const params = {};
+    if (ownerId) {
+      params.owner = ownerId;
+    }
+    
+    const response = await api.get('/files/', { params });    
+    
+    if (response.data && response.data.results) {
+      return response.data.results;
+    } else if (Array.isArray(response.data)) {
+      return response.data;
+    } else {
+      console.warn('Неожиданный формат ответа от API:', response.data);
+      return [];
+    }
   } catch (error) {
     console.error('Ошибка при получении файлов:', error);
     throw error;
@@ -22,7 +30,8 @@ export const uploadFile = async (formData, onUploadProgress) => {
         'Content-Type': 'multipart/form-data',
       },
       onUploadProgress,
-    };
+    };    
+    
     const response = await api.post('/files/', formData, config);
     return response.data;
   } catch (error) {
@@ -52,7 +61,7 @@ export const renameFile = async (id, newName) => {
 
 export const updateFileComment = async (id, comment) => {
   try {
-    const response = await api.patch(`/files/${id}/update_comment/`, { comment });
+    const response = await api.patch(`/files/${id}/`, { comment });
     return response.data;
   } catch (error) {
     console.error(`Ошибка при обновлении комментария файла с id=${id}:`, error);

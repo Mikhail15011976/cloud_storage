@@ -12,7 +12,6 @@ from django.core.exceptions import ValidationError
 logger = logging.getLogger(__name__)
 
 class UserManager(BaseUserManager):
-    """Менеджер для кастомной модели User"""
     def create_user(self, username, email, full_name, password=None, **extra_fields):        
         if not email:
             raise ValueError(_('Email обязателен'))
@@ -78,7 +77,6 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    """Кастомная модель пользователя"""
     username = models.CharField(
         _('username'),
         max_length=20,
@@ -125,7 +123,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     storage_quota = models.BigIntegerField(
         _('storage quota'),
-        default=100 * 1024 * 1024,  # 100 МБ
+        default=100 * 1024 * 1024,
         help_text=_('Квота хранилища в байтах'),
     )
 
@@ -185,36 +183,29 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def storage_used(self):
-        """Возвращает объем использованного хранилища в байтах"""
         return self.files.filter(is_deleted=False).aggregate(total=Sum('size'))['total'] or 0
 
     @property
     def storage_left(self):
-        """Возвращает объем оставшегося хранилища в байтах"""
         return max(0, self.storage_quota - self.storage_used)
 
     def has_perm(self, perm, obj=None):
-        """Проверка прав доступа, администратор имеет все права"""
         if self.is_admin:
             return True
         return super().has_perm(perm, obj)
 
     def has_module_perms(self, app_label):
-        """Проверка прав на модуль"""
         return True
 
     def can_upload_file(self, file_size):
-        """Проверяет, может ли пользователь загрузить файл указанного размера"""
         return self.storage_left >= file_size
 
 
 def user_directory_path(instance, filename):
-    """Путь для сохранения файла: media/user_<username>/<filename>"""
     return os.path.join(instance.owner.storage_directory, filename)
 
 
 class File(models.Model):
-    """Модель файла в облачном хранилище"""
     class FileType(models.TextChoices):
         PDF = 'PDF', _('PDF Document')
         WORD = 'WORD', _('Word Document')
@@ -330,7 +321,6 @@ class File(models.Model):
         return f"{self.original_name} (Владелец: {self.owner.username})"
 
     def clean(self):
-        """Валидация перед сохранением, проверка квоты хранилища"""
         if not self.pk and not self.is_deleted:  
             file_size = self.size if self.size > 0 else (self.file.size if hasattr(self.file, 'size') else 0)
             if not self.owner.can_upload_file(file_size):
@@ -341,20 +331,16 @@ class File(models.Model):
                 )    
 
     def _set_original_name(self):
-        """Установка оригинального имени файла"""
         if self.file and not self.original_name:
             self.original_name = os.path.basename(self.file.name)
 
     def _determine_file_type(self):
-        """Определение типа файла"""
         if self.file:
             determined_type = self._get_file_type()
             if self.file_type != determined_type:
                 self.file_type = determined_type
-                logger.debug(f"File type set to {determined_type} for {self.original_name}")
 
     def _calculate_file_size(self):
-        """Расчет размера файла"""
         if self.file:
             try:
                 if hasattr(self.file, 'path') and os.path.exists(self.file.path):
@@ -365,30 +351,27 @@ class File(models.Model):
                     self.size = 0
             except (FileNotFoundError, OSError):                
                 self.size = 0
-                logger.warning(f"File not found when calculating size: {getattr(self.file, 'path', 'unknown')}")
         else:
             self.size = 0
 
     def _generate_shared_link(self):
-        """Генерация ссылки для общего доступа"""
-        if not self.shared_link and self.is_public:
-            self.shared_link = uuid.uuid4().hex[:16]
+        if not self.shared_link:            
+            self.shared_link = uuid.uuid4().hex[:16]            
+            
+            while File.objects.filter(shared_link=self.shared_link).exists():
+                self.shared_link = uuid.uuid4().hex[:16]
 
     def delete(self, *args, **kwargs):
-        """Полное удаление файла с физическим удалением"""        
         self._delete_physical_file()
-        
         super().delete(*args, **kwargs)
         logger.info(f"File completely deleted: {self.original_name} (ID: {self.id})")
 
     def soft_delete(self, *args, **kwargs):
-        """Помечает файл как удаленный вместо физического удаления"""
         self.is_deleted = True        
         self.save(update_fields=['is_deleted'])
         logger.info(f"File marked as deleted: {self.original_name} (ID: {self.id})")
 
     def _delete_physical_file(self):
-        """Удаление физического файла"""
         if self.file and hasattr(self.file, 'path'):
             try:
                 if os.path.isfile(self.file.path):
@@ -401,31 +384,47 @@ class File(models.Model):
                 raise ValidationError(_("Ошибка при удалении файла"))
             
     def rename_physical_file(self, new_name):
-        """Переименовывает физический файл на диске"""
         if self.file and hasattr(self.file, 'path'):
             try:
                 old_path = self.file.path                
+                
+                if not os.path.exists(old_path):
+                    return                
+                
                 directory = os.path.dirname(old_path)
-                extension = os.path.splitext(old_path)[1]
-                new_filename = new_name + extension
-                new_path = os.path.join(directory, new_filename)                
+                current_filename = os.path.basename(old_path)                
+                
+                current_name_without_ext, current_ext = os.path.splitext(current_filename)                
+                
+                new_name_without_ext, new_ext = os.path.splitext(new_name)
+                
+                if new_ext:                    
+                    final_filename = new_name
+                else:                    
+                    final_filename = new_name + current_ext
+                
+                new_path = os.path.join(directory, final_filename)                
+                
+                if old_path == new_path:
+                    return                
                 
                 os.rename(old_path, new_path)                
                 
                 self.file.name = os.path.relpath(new_path, settings.MEDIA_ROOT)
-                logger.info(f"File renamed from {old_path} to {new_path}")
                 
             except (FileNotFoundError, OSError) as e:
                 logger.error(f"Error renaming file: {str(e)}")
                 raise ValidationError(_("Ошибка при переименовании файла"))
+            except Exception as e:
+                logger.error(f"Unexpected error renaming file: {str(e)}")
+                raise ValidationError(_("Неожиданная ошибка при переименовании файла"))
 
     def save(self, *args, **kwargs):
-        """Переопределение метода сохранения с объединенной логикой"""
         if not self.is_deleted:
             self._set_original_name()
             self._determine_file_type()
             self._calculate_file_size()
-            self._generate_shared_link()
+            self._generate_shared_link()  
     
         if self.pk and not self.is_deleted:
             try:
@@ -439,9 +438,7 @@ class File(models.Model):
         super().save(*args, **kwargs)    
 
     def _get_file_type(self):
-        """Определение типа файла на основе расширения"""
         if not self.file:
-            logger.warning(f"No file associated with {self.original_name}")
             return self.FileType.OTHER
 
         ext = os.path.splitext(self.file.name)[1].lower()
@@ -457,7 +454,6 @@ class File(models.Model):
 
     @property
     def human_readable_size(self):
-        """Возвращает размер файла в читаемом формате"""
         size = self._get_actual_file_size()
         for unit in ['B', 'KB', 'MB', 'GB']:
             if size < 1024:
@@ -466,23 +462,29 @@ class File(models.Model):
         return f"{size:.1f} TB"
 
     def _get_actual_file_size(self):
-        """Получение актуального размера файла"""
         if (self.size == 0 and not self.is_deleted and 
             hasattr(self.file, 'path') and os.path.exists(self.file.path)):
             try:
                 self.size = os.path.getsize(self.file.path)                
                 self.save(update_fields=['size'])
             except (FileNotFoundError, OSError):
-                logger.warning(f"File not found when updating size: {self.file.path}")
                 self.size = 0
             except Exception as e:
                 logger.error(f"Error updating file size: {str(e)}")
         return self.size
 
     def can_be_accessed_by(self, user):
-        """Проверяет, может ли пользователь получить доступ к файлу"""
         if self.is_deleted:
             return False
         if self.is_public:
             return True
         return user.is_authenticated and (user.is_admin or self.owner == user)
+
+    def get_public_url(self, request=None):
+        if not self.shared_link:
+            return None
+        
+        if request:
+            return request.build_absolute_uri(f'/public/files/{self.shared_link}/')
+        else:            
+            return f'/public/files/{self.shared_link}/'

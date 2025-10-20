@@ -24,8 +24,12 @@ class FileSerializer(serializers.ModelSerializer):
         )
 
     def create(self, validated_data):
-        """Установка владельца файла как текущего пользователя при создании"""
-        validated_data['owner'] = self.context['request'].user
+        """Установка владельца файла как текущего пользователя при создании"""        
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['owner'] = request.user
+        else:
+            raise serializers.ValidationError(_("Не удалось определить владельца файла."))
         
         if 'original_name' not in validated_data or not validated_data['original_name']:
             file_obj = validated_data.get('file')
@@ -36,9 +40,11 @@ class FileSerializer(serializers.ModelSerializer):
 
     def validate_file(self, value):
         """Валидация файла перед загрузкой"""
-        user = self.context['request'].user
-        if not user.is_authenticated:
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
             raise serializers.ValidationError(_("Вы должны быть авторизованы для загрузки файлов."))
+        
+        user = request.user
         
         if hasattr(value, 'size') and not user.can_upload_file(value.size):
             raise serializers.ValidationError(
@@ -66,7 +72,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_files_count(self, obj):
         """Получение количества файлов пользователя"""
-        return obj.files.count()
+        return obj.files.filter(is_deleted=False).count()
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -91,7 +97,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def get_files_count(self, obj):
         """Получение количества файлов пользователя"""
-        return obj.files.count()
+        return obj.files.filter(is_deleted=False).count()
 
 
 class RegisterSerializer(serializers.ModelSerializer):

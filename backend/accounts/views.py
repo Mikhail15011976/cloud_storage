@@ -32,19 +32,11 @@ from .permissions import (
 logger = logging.getLogger(__name__)
 
 class StandardResultsSetPagination(PageNumberPagination):
-    """Кастомная пагинация для API"""
     page_size = 20
     page_size_query_param = 'page_size'
     max_page_size = 100
 
 class FileViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint для управления файлами пользователей.
-    Поддерживает все CRUD операции, а также дополнительные действия:
-    - download: скачивание файла
-    - share: создание публичной ссылки
-    - rename: переименование файла
-    """
     queryset = File.objects.all()
     serializer_class = FileSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -56,40 +48,33 @@ class FileViewSet(viewsets.ModelViewSet):
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
-        """Возвращает queryset файлов в зависимости от прав пользователя."""
-        queryset = super().get_queryset().filter(is_deleted=False)        
+        queryset = super().get_queryset().filter(is_deleted=False)         
         
-        owner_id = self.request.query_params.get('owner')
-        if owner_id:            
-            if self.request.user.is_admin:
+        if self.request.user.is_admin:            
+            owner_id = self.request.query_params.get('owner')
+            if owner_id:
                 queryset = queryset.filter(owner__id=owner_id)
-            else:                
-                if str(self.request.user.id) == owner_id:
-                    queryset = queryset.filter(owner__id=owner_id)
-                else:                    
-                    queryset = queryset.none()
         else:            
-            if not self.request.user.is_admin:
-                queryset = queryset.filter(owner=self.request.user)
+            queryset = queryset.filter(owner=self.request.user)
         
-        return queryset    
+        return queryset
 
     def perform_create(self, serializer):
-        """Создание нового файла с проверкой квоты хранилища."""
         file_obj = self.request.FILES.get('file')
         if not file_obj:
             raise ValidationError({"file": "Файл не предоставлен."})
-
-        if self.request.user.storage_left < file_obj.size:
-            raise ValidationError(
-                {"detail": f"Недостаточно места в хранилище. Доступно: {self.request.user.storage_left} байт"}
-            )
         
-        serializer.save(owner=self.request.user)
-        logger.info(f"User {self.request.user.username} uploaded file {file_obj.name}")
+        current_user = self.request.user        
+        
+        if current_user.storage_left < file_obj.size:
+            raise ValidationError(
+                {"detail": f"Недостаточно места в хранилище. Доступно: {current_user.storage_left} байт"}
+            )        
+        
+        serializer.save(owner=current_user)
+        logger.info(f"User {current_user.username} uploaded file {file_obj.name}")
 
     def perform_destroy(self, instance):
-        """Удаление файла с физическим удалением с диска."""
         try:
             instance.delete()
             logger.info(f"Deleted file record: {instance.original_name}")
@@ -106,11 +91,18 @@ class FileViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
-        """Скачивание файла с обновлением даты последнего скачивания."""
-        file = self.get_object()
+        file = self.get_object()        
+        
+        if not file.can_be_accessed_by(request.user):
+            return Response(
+                {"detail": "У вас нет доступа к этому файлу."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         file.last_download = timezone.now()
         file.save()
 
+        file_handle = None
         try:
             file_path = file.file.path
             if not os.path.exists(file_path):
@@ -118,13 +110,20 @@ class FileViewSet(viewsets.ModelViewSet):
                 raise Http404("Файл не найден на сервере.")
             
             mime_type, _ = mimetypes.guess_type(file_path)
-            return FileResponse(
-                open(file_path, 'rb'),
+            file_handle = open(file_path, 'rb')
+            response = FileResponse(
+                file_handle,
                 content_type=mime_type or 'application/octet-stream',
                 as_attachment=True,
                 filename=file.original_name
-            )
+            )            
+            
+            file_handle = None
+            return response
+            
         except Exception as e:
+            if file_handle:
+                file_handle.close()
             logger.error(f"Download error: {str(e)}")
             raise Http404(f"Ошибка при скачивании: {str(e)}")
 
@@ -151,8 +150,13 @@ class FileViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post', 'delete'])
     def share(self, request, pk=None):
-        """Управление публичным доступом к файлу."""
         file = self.get_object()
+        
+        if not file.can_be_accessed_by(request.user):
+            return Response(
+                {"detail": "У вас нет прав для управления этим файлом."},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         if request.method == 'POST':           
             link = uuid.uuid4().hex[:16]
@@ -197,8 +201,14 @@ class FileViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['patch'], url_path='rename')
     def rename(self, request, pk=None):
-        """Переименование файла."""
-        file = self.get_object()
+        file = self.get_object()        
+        
+        if not file.can_be_accessed_by(request.user) or (not request.user.is_admin and file.owner != request.user):
+            return Response(
+                {"detail": "У вас нет прав для переименования этого файла."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         new_name = request.data.get('new_name')
         
         if not new_name or not new_name.strip():
@@ -224,10 +234,6 @@ class FileViewSet(viewsets.ModelViewSet):
             )
 
 class PublicFileDownloadView(APIView):
-    """
-    API для скачивания публичных файлов по shared_link.
-    Доступ без аутентификации.
-    """
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
@@ -238,37 +244,38 @@ class PublicFileDownloadView(APIView):
         }
     )
     def get(self, request, shared_link):
-        """Скачивание файла по публичной ссылке."""
         try:
-            file = File.objects.get(shared_link=shared_link, is_public=True)
+            file = File.objects.get(shared_link=shared_link, is_public=True, is_deleted=False)
         except File.DoesNotExist:
             raise Http404("Файл не найден или недоступен")
 
         file.last_download = timezone.now()
         file.save()
 
+        file_handle = None
         try:
             file_path = file.file.path
             if not os.path.exists(file_path):
                 raise Http404("Файл не найден на сервере")
 
             mime_type, _ = mimetypes.guess_type(file_path)
-            with open(file_path, 'rb') as f:
-                response = FileResponse(
-                    f,
-                    content_type=mime_type or 'application/octet-stream'
-                )
-                response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
-                return response
+            file_handle = open(file_path, 'rb')
+            response = FileResponse(
+                file_handle,
+                content_type=mime_type or 'application/octet-stream'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{file.original_name}"'
+                        
+            file_handle = None
+            return response
+            
         except Exception as e:
+            if file_handle:
+                file_handle.close()
             logger.error(f"Public download error: {str(e)}")
             raise Http404(f"Ошибка скачивания: {str(e)}")
 
 class RegisterView(APIView):
-    """
-    Регистрация нового пользователя.
-    При успешной регистрации возвращает данные пользователя и токен.
-    """
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
@@ -280,7 +287,6 @@ class RegisterView(APIView):
         }
     )
     def post(self, request):
-        """Обработка регистрации."""
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -295,10 +301,6 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
-    """
-    Аутентификация пользователя.
-    При успешном входе возвращает данные пользователя и токен.
-    """
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
@@ -310,7 +312,6 @@ class LoginView(APIView):
         }
     )
     def post(self, request):
-        """Обработка входа."""
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -324,10 +325,6 @@ class LoginView(APIView):
         }, status=status.HTTP_200_OK)
 
 class LogoutView(APIView):
-    """
-    Выход пользователя из системы.
-    Удаляет токен аутентификации.
-    """
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
@@ -338,7 +335,6 @@ class LogoutView(APIView):
         }
     )
     def post(self, request):
-        """Обработка выхода."""
         try:
             if hasattr(request, 'auth') and isinstance(request.auth, Token):
                 request.auth.delete()
@@ -356,16 +352,12 @@ class LogoutView(APIView):
             )
 
 class UserViewSet(viewsets.ModelViewSet):
-    """
-    Управление пользователями (только для администраторов).
-    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
-        """Ограничение queryset в зависимости от прав."""
         if self.request.user.is_admin:
             return User.objects.all()
         return User.objects.filter(id=self.request.user.id)
@@ -379,12 +371,10 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'])
     def me(self, request):
-        """Получение данных текущего пользователя."""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        """Запрет на удаление собственной учетной записи."""
         instance = self.get_object()
         if instance == request.user:
             return Response(
