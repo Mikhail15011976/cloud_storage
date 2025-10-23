@@ -56,7 +56,7 @@
     -- Выход из PostgreSQL
     \q
 
-### 4. Настройка бекенда
+### 4. Настройка backend
 
     # Переход в директорию backend
     cd ~/cloud_storage/backend
@@ -156,7 +156,7 @@
     gunicorn --version
     deactivate
 
-### 5. Настройка фронтенда
+### 5. Настройка frontend
 
     cd ../frontend
 
@@ -203,7 +203,7 @@
     sudo chmod -R 755 /home/mikhail/cloud_storage
     sudo chmod 750 /home/mikhail/cloud_storage/backend
 
-    # Настройка прав на sock-файл (ВАЖНО!)
+    # Настройка прав на sock-файл
     sudo chmod 660 /home/mikhail/cloud_storage/backend/cloud_storage.sock
     sudo chown mikhail:www-data /home/mikhail/cloud_storage/backend/cloud_storage.sock
 
@@ -222,7 +222,7 @@
     # Проверка API
     curl -I http://your_domain/api/
 
-    # Проверка фронтенда
+    # Проверка frontend
     curl -I http://your_domain/
 
 ### 7. Настройка Nginx
@@ -342,7 +342,7 @@
 
 ### 10. Проверка работы приложения
 #### Откройте браузер и перейдите по вашему домену или IP-адресу.
-#### Убедитесь, что фронтенд загружается, и вы можете войти в систему через созданного суперпользователя.
+#### Убедитесь, что frontend загружается, и вы можете войти в систему через созданного суперпользователя.
 #### Проверьте доступ к админ-панели по адресу http://your_domain/admin/.
 
     # 1. Проверка статических файлов Django
@@ -355,8 +355,8 @@
     curl -I http://your_domain/api/
     curl http://your_domain/api/ | head -20
 
-    # 3. Проверка фронтенда
-    echo "=== Проверка фронтенда ==="
+    # 3. Проверка frontend
+    echo "=== Проверка frontend ==="
     curl -I http://your_domain/
 
     # 4. Проверка админки
@@ -416,14 +416,14 @@
     cd /home/your_username/cloud_storage
     git pull origin main
 
-    # Бэкенд
+    # Backend
     cd backend
     source venv/bin/activate
     pip install -r requirements.txt
     python manage.py migrate
     python manage.py collectstatic --noinput    
 
-    # Фронтенд
+    # Frontend
     cd ../frontend
     yarn install --frozen-lockfile
     yarn build    

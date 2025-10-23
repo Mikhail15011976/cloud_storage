@@ -206,7 +206,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 52428800))
 
-# ПРАВА ДЛЯ ФАЙЛОВ - КЛЮЧЕВЫЕ НАСТРОЙКИ
+# права для файлов
 FILE_UPLOAD_PERMISSIONS = 0o664  # -rw-rw-r--
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o775  # drwxrwxr-x
 

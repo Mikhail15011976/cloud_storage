@@ -33,7 +33,7 @@ def home(request):
             <li><a href="/api/">API Root</a></li>
             <li><a href="/swagger/">Swagger UI</a></li>
             <li><a href="/redoc/">ReDoc UI</a></li>
-            <li><a href="/admin/">Admin Panel</a></li>            
+            <li><a href="/admin/">Admin Panel</a></li>
         </ul>
     """)
 
@@ -44,18 +44,18 @@ urlpatterns = [
 
     # Админ-панель Django
     path('admin/', admin.site.urls),
-    
+
     # Публичный доступ к файлам
     path('public/files/<str:shared_link>/', PublicFileDownloadView.as_view(), name='public-file-download'),
-    
+
     # Документация API
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     re_path(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     re_path(r'^redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-    
+
     # API приложения
     path('api/', include('accounts.urls')),
-    
+
     # Стандартные URL для аутентификации DRF
     path('api/auth/', include('rest_framework.urls', namespace='rest_framework')),
 
@@ -63,11 +63,12 @@ urlpatterns = [
     path('accounts/logout/', DjangoLogoutView.as_view(next_page='/swagger/'), name='django-logout'),
 ]
 
-# Обработка медиа-файлов в режиме разработки
+# Обслуживание статических и медиа файлов
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Подключение Debug Toolbar, если установлен (только для DEBUG)
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    
-    # Подключение Debug Toolbar, если установлен
     try:
         import debug_toolbar
         urlpatterns = [
