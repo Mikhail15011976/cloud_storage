@@ -11,6 +11,9 @@ os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'media'), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
 
+print(f"BASE_DIR: {BASE_DIR}")
+print(f"STATIC_ROOT: {os.path.join(BASE_DIR, 'staticfiles')}")
+
 # Безопасность
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 DEBUG = os.getenv('DJANGO_DEBUG') == 'True'
@@ -26,14 +29,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Сторонние приложения
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
     'drf_yasg',
     'django_filters',
-    
+
     # Локальные приложения
     'accounts.apps.AccountsConfig',
 ]
@@ -130,6 +133,17 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    # настройки для правильного отображения api
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
 }
 
 # Проверка и добавление JWT, если установлен
@@ -158,6 +172,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.93:3000",
     "http://192.168.0.93:8000",
     "http://192.168.1.127:3000",
+    "http://89.104.71.186",
+    "http://192.168.0.49",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -174,11 +190,11 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # Международные настройки
-LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE')
-TIME_ZONE = os.getenv('DJANGO_TIME_ZONE')
-USE_I18N = os.getenv('DJANGO_USE_I18N') == 'True'
-USE_L10N = os.getenv('DJANGO_USE_L10N') == 'True'
-USE_TZ = os.getenv('DJANGO_USE_TZ') == 'True'
+LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE', 'en-us')
+TIME_ZONE = os.getenv('DJANGO_TIME_ZONE', 'UTC')
+USE_I18N = os.getenv('DJANGO_USE_I18N', 'True') == 'True'
+USE_L10N = os.getenv('DJANGO_USE_L10N', 'True') == 'True'
+USE_TZ = os.getenv('DJANGO_USE_TZ', 'True') == 'True'
 
 # Статические файлы
 STATIC_URL = '/static/'
@@ -187,9 +203,16 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 # Медиа файлы
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.getenv('MEDIA_ROOT')
-MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE'))
-FILE_UPLOAD_PERMISSIONS = int(os.getenv('FILE_UPLOAD_PERMISSIONS'), 8)
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 52428800))
+
+# ПРАВА ДЛЯ ФАЙЛОВ - КЛЮЧЕВЫЕ НАСТРОЙКИ
+FILE_UPLOAD_PERMISSIONS = 0o664  # -rw-rw-r--
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o775  # drwxrwxr-x
+
+# Принудительная установка umask для всех операций с файлами
+import os
+os.umask(0o002)
 
 # Настройки по умолчанию
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -216,37 +239,50 @@ LOGGING = {
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs/django.log'),
-            'maxBytes': int(os.getenv('LOG_MAX_BYTES')),
-            'backupCount': int(os.getenv('LOG_BACKUP_COUNT')),
+            'maxBytes': int(os.getenv('LOG_MAX_BYTES', 5242880)),
+            'backupCount': int(os.getenv('LOG_BACKUP_COUNT', 5)),
             'formatter': 'verbose',
             'encoding': 'utf-8',
         },
     },
     'root': {
         'handlers': ['console'],
-        'level': os.getenv('ROOT_LOG_LEVEL'),
+        'level': os.getenv('ROOT_LOG_LEVEL', 'INFO'),
     },
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
-            'level': os.getenv('DJANGO_LOG_LEVEL'),
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },
         'accounts': {
             'handlers': ['console', 'file'],
-            'level': os.getenv('ACCOUNTS_LOG_LEVEL'),
+            'level': os.getenv('ACCOUNTS_LOG_LEVEL', 'INFO'),
         },
     },
 }
 
+# Настройки для Swagger
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Token': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+    'JSON_EDITOR': True,
+}
+
 # Настройки для production (при выключенном DEBUG)
 if not DEBUG:
-    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS'))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS') == 'True'
-    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT') == 'True'
-    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE') == 'True'
-    CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE') == 'True'
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', 31536000))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True') == 'True'
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False') == 'True'
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'True') == 'True'
+    CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'True') == 'True'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_BROWSER_XSS_FILTER = os.getenv('SECURE_BROWSER_XSS_FILTER') == 'True'
-    SECURE_CONTENT_TYPE_NOSNIFF = os.getenv('SECURE_CONTENT_TYPE_NOSNIFF') == 'True'
-    X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS')
+    SECURE_BROWSER_XSS_FILTER = os.getenv('SECURE_BROWSER_XSS_FILTER', 'True') == 'True'
+    SECURE_CONTENT_TYPE_NOSNIFF = os.getenv('SECURE_CONTENT_TYPE_NOSNIFF', 'True') == 'True'
+    X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY')
